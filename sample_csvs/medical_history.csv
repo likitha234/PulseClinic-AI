@@ -1,0 +1,6 @@
+id,patientId,chronicConditions,allergies,currentMedications,surgeries,previousVisitsCount,lastVisitDate
+hist-101,pat-syn-101,Essential Hypertension;Type 2 Diabetes,Penicillin;Sulfa drugs,Lisinopril 20mg;Metformin 500mg,Appendectomy (2002),5,2026-05-10
+hist-102,pat-syn-102,Mild Persistent Asthma,Amoxicillin,Albuterol inhaler;Fluticasone,None,3,2026-07-14
+hist-103,pat-syn-103,None,Latex,None,None,0,
+hist-104,pat-syn-104,Hyperlipidemia;Osteoarthritis,Codeine,Atorvastatin 20mg;Glucosamine,Right Knee Arthroscopy (2018),4,2026-03-22
+hist-105,pat-syn-105,Migraine with Aura,Ibuprofen,Sumatriptan 50mg,None,1,2026-08-01

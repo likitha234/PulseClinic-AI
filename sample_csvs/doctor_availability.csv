@@ -1,0 +1,8 @@
+slotId,doctorId,doctorName,specialty,date,startTime,endTime,isBooked
+slot-doc-gp-2-2026-11-02-09:00,doc-gp-2,Dr. Rachel Moore,General Physician,2026-11-02,09:00,09:30,false
+slot-doc-gp-2-2026-11-02-09:30,doc-gp-2,Dr. Rachel Moore,General Physician,2026-11-02,09:30,10:00,false
+slot-doc-cardio-2-2026-11-02-10:00,doc-cardio-2,Dr. Victor Sterling,Cardiologist,2026-11-02,10:00,10:45,false
+slot-doc-derm-2-2026-11-02-11:00,doc-derm-2,Dr. Ananya Patel,Dermatologist,2026-11-02,11:00,11:30,false
+slot-doc-ortho-2-2026-11-02-14:00,doc-ortho-2,Dr. Lucas Vance,Orthopedic,2026-11-02,14:00,14:30,false
+slot-doc-peds-2-2026-11-02-15:00,doc-peds-2,Dr. Maya Lin,Pediatrician,2026-11-02,15:00,15:30,false
+slot-doc-neuro-2-2026-11-02-15:30,doc-neuro-2,Dr. Kenneth Morales,Neurologist,2026-11-02,15:30,16:15,false

@@ -1,0 +1,6 @@
+{
+  "name": "PulseClinic AI - Clinic Intake, Triage & Booking Agent",
+  "description": "Autonomous AI Clinic Intake, Triage & Booking Agent featuring clinical red-flag detection, specialist routing, Browserbase calendar automation, resilient human approvals, and automated evaluation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

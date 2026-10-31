@@ -1,0 +1,162 @@
+{
+  "entities": {
+    "Patient": {
+      "title": "Patient",
+      "description": "Patient record containing clinical demographics and contact details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique patient identifier" },
+        "fullName": { "type": "string", "description": "Patient full legal name" },
+        "email": { "type": "string", "description": "Patient email address" },
+        "phone": { "type": "string", "description": "Patient telephone number" },
+        "dateOfBirth": { "type": "string", "description": "Date of birth in YYYY-MM-DD" },
+        "age": { "type": "number", "description": "Age in years" },
+        "gender": { "type": "string", "description": "Patient gender" },
+        "isReturning": { "type": "boolean", "description": "Whether patient has prior visits" },
+        "consentGiven": { "type": "boolean", "description": "Data processing and clinical consent" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" },
+        "createdAt": { "type": "string", "description": "Creation timestamp ISO" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp ISO" }
+      },
+      "required": ["id", "fullName", "email"]
+    },
+    "MedicalHistory": {
+      "title": "MedicalHistory",
+      "description": "Patient clinical medical history, chronic conditions, and allergies",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique medical history identifier" },
+        "patientId": { "type": "string", "description": "Associated patient ID" },
+        "chronicConditions": { "type": "array", "description": "Documented chronic illnesses" },
+        "allergies": { "type": "array", "description": "Documented drug and food allergies" },
+        "currentMedications": { "type": "array", "description": "Active prescription medications" },
+        "surgeries": { "type": "array", "description": "Past surgical procedures" },
+        "previousVisitsCount": { "type": "number", "description": "Number of previous clinic visits" },
+        "lastVisitDate": { "type": "string", "description": "Date of last clinical encounter" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
+      },
+      "required": ["id", "patientId"]
+    },
+    "Doctor": {
+      "title": "Doctor",
+      "description": "Clinic medical staff specialist profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique doctor identifier" },
+        "name": { "type": "string", "description": "Physician full name" },
+        "title": { "type": "string", "description": "Medical degree and qualifications" },
+        "specialty": { "type": "string", "description": "Clinical medical specialty" },
+        "qualifications": { "type": "string", "description": "Board certifications" },
+        "bio": { "type": "string", "description": "Clinical background description" },
+        "roomNumber": { "type": "string", "description": "Clinic examination room" },
+        "avatarUrl": { "type": "string", "description": "Doctor profile photo" },
+        "availableDays": { "type": "array", "description": "Working days of week" },
+        "slotDurationMinutes": { "type": "number", "description": "Duration per appointment slot" },
+        "status": { "type": "string", "description": "Physician status ACTIVE or ON_LEAVE" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
+      },
+      "required": ["id", "name", "specialty"]
+    },
+    "DoctorAvailability": {
+      "title": "DoctorAvailability",
+      "description": "Individual appointment time slot for a clinic physician",
+      "type": "object",
+      "properties": {
+        "slotId": { "type": "string", "description": "Unique slot identifier" },
+        "doctorId": { "type": "string", "description": "Referenced doctor ID" },
+        "doctorName": { "type": "string", "description": "Doctor name" },
+        "specialty": { "type": "string", "description": "Medical specialty" },
+        "date": { "type": "string", "description": "Slot date YYYY-MM-DD" },
+        "startTime": { "type": "string", "description": "Slot start time HH:mm" },
+        "endTime": { "type": "string", "description": "Slot end time HH:mm" },
+        "isBooked": { "type": "boolean", "description": "Booking reservation status" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
+      },
+      "required": ["slotId", "doctorId", "date", "startTime"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Confirmed clinic appointment booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique appointment identifier" },
+        "bookingId": { "type": "string", "description": "Human-readable booking reference" },
+        "patientId": { "type": "string", "description": "Patient identifier" },
+        "patientName": { "type": "string", "description": "Patient full name" },
+        "patientEmail": { "type": "string", "description": "Patient contact email" },
+        "doctorId": { "type": "string", "description": "Doctor identifier" },
+        "doctorName": { "type": "string", "description": "Doctor full name" },
+        "doctorSpecialty": { "type": "string", "description": "Doctor specialty" },
+        "date": { "type": "string", "description": "Appointment date YYYY-MM-DD" },
+        "time": { "type": "string", "description": "Appointment time HH:mm" },
+        "status": { "type": "string", "description": "Status CONFIRMED, CANCELLED, REBOOKED" },
+        "urgency": { "type": "string", "description": "Triage urgency RED, ORANGE, GREEN" },
+        "chiefComplaint": { "type": "string", "description": "Primary symptom or reason for visit" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
+      },
+      "required": ["id", "patientId", "doctorId", "date", "time"]
+    },
+    "TriageTestData": {
+      "title": "TriageTestData",
+      "description": "Clinical triage test scenario benchmark record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Scenario test identifier" },
+        "complaint": { "type": "string", "description": "Chief complaint statement" },
+        "symptoms": { "type": "array", "description": "Associated symptoms list" },
+        "severity": { "type": "number", "description": "Pain or severity score 1-10" },
+        "duration": { "type": "string", "description": "Symptom duration description" },
+        "expectedUrgency": { "type": "string", "description": "Expected clinical urgency level" },
+        "expectedSpecialty": { "type": "string", "description": "Expected specialist assignment" },
+        "isEmergency": { "type": "boolean", "description": "Whether condition is emergency red-flag" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
+      },
+      "required": ["id", "complaint", "expectedUrgency"]
+    },
+    "EvaluationTestCase": {
+      "title": "EvaluationTestCase",
+      "description": "Agentic AI automated evaluation test specification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Test case code e.g. TC01" },
+        "title": { "type": "string", "description": "Test case descriptive title" },
+        "scenario": { "type": "string", "description": "Clinical or operational scenario" },
+        "expectedUrgency": { "type": "string", "description": "Expected triage outcome" },
+        "expectedOutcome": { "type": "string", "description": "Expected system behavior" },
+        "safetyCheck": { "type": "string", "description": "Medical safety requirement verified" },
+        "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
+      },
+      "required": ["id", "title", "expectedUrgency"]
+    }
+  },
+  "firestore": {
+    "/patients/{patientId}": {
+      "schema": "Patient",
+      "description": "Collection of patient demographic and registration records"
+    },
+    "/medical_history/{historyId}": {
+      "schema": "MedicalHistory",
+      "description": "Collection of patient medical histories and chronic conditions"
+    },
+    "/doctors/{doctorId}": {
+      "schema": "Doctor",
+      "description": "Physician profiles across clinical specialties"
+    },
+    "/doctor_availability/{availId}": {
+      "schema": "DoctorAvailability",
+      "description": "Doctor calendar availability slots"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Patient booking records"
+    },
+    "/triage_test_data/{testId}": {
+      "schema": "TriageTestData",
+      "description": "Triage test cases and validation benchmarks"
+    },
+    "/evaluation_test_cases/{caseId}": {
+      "schema": "EvaluationTestCase",
+      "description": "Automated AI agent evaluation test suite definitions"
+    }
+  }
+}

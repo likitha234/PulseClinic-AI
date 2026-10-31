@@ -1,0 +1,6 @@
+id,fullName,email,phone,dateOfBirth,age,gender,isReturning,consentGiven
+pat-syn-101,Arthur Pendelton,arthur.pendelton@example.com,+1 (555) 789-1020,1968-04-12,58,Male,true,true
+pat-syn-102,Beatrice Holloway,beatrice.holloway@example.com,+1 (555) 891-2345,1982-09-23,44,Female,true,true
+pat-syn-103,Chloe Chen,chloe.chen@example.com,+1 (555) 456-7890,1995-12-05,31,Female,false,true
+pat-syn-104,Devon Miller,devon.miller@example.com,+1 (555) 321-9876,1976-02-18,50,Male,true,true
+pat-syn-105,Fatima Al-Mansoor,fatima.almansoor@example.com,+1 (555) 654-3210,1991-07-30,35,Female,false,true

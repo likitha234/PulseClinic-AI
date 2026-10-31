@@ -1,0 +1,8 @@
+id,complaint,symptoms,severity,duration,onset,associatedSymptoms,expectedUrgency,expectedSpecialty,isEmergency,notes
+tri-test-01,Crushing retrosternal chest pain radiating to left arm,Crushing chest pressure;Left arm pain;Diaphoresis,9,45 minutes,Sudden,Nausea;Cold sweat,RED,Cardiologist,true,Immediate emergency protocol activation required
+tri-test-02,Severe unilateral throbbing headache with nausea and light sensitivity,Pulsating temple ache;Photophobia;Nausea,8,12 hours,Gradual,Visual spots,ORANGE,Neurologist,false,Migraine presentation requiring urgent neurological evaluation
+tri-test-03,Mild dry cough and seasonal clear nasal discharge,Dry cough;Sneezing;Nasal congestion,3,4 days,Gradual,None,GREEN,General Physician,false,Routine primary care consult
+tri-test-04,Sprained right ankle after stepping off curb with swelling,Ankle swelling;Inability to bear full weight;Bruising,6,2 hours,Sudden,Localized tenderness,ORANGE,Orthopedic,false,Requires acute orthopedic assessment and X-ray
+tri-test-05,Pruritic erythematous macular rash on both forearms after gardening,Itchy forearm rash;Red raised macules,4,1 day,Gradual,Mild burning,GREEN,Dermatologist,false,Contact dermatitis candidate for routine dermatology
+tri-test-06,Pediatric low-grade fever with mild ear pulling in 4-year-old,Ear tugging;Irritability;Fever 38C,5,1 day,Gradual,Poor sleep,GREEN,Pediatrician,false,Otitis media candidate for pediatric care
+tri-test-07,Sudden facial drooping and slurred speech while having lunch,Facial weakness;Dysarthria;Arm drift,10,20 minutes,Sudden,Mild confusion,RED,Neurologist,true,Acute stroke code activation immediately
