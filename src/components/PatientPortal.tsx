@@ -7,6 +7,7 @@ import {
   CheckCircle,
   AlertCircle,
   ChevronRight,
+  ChevronLeft,
   Shield,
   Stethoscope,
   MapPin,
@@ -33,6 +34,7 @@ interface PatientPortalProps {
   onRefreshData: () => void;
   doctors: Doctor[];
   appointments: Appointment[];
+  onBackToDashboard?: () => void;
 }
 
 export const PatientPortal: React.FC<PatientPortalProps> = ({
@@ -41,6 +43,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   onRefreshData,
   doctors,
   appointments,
+  onBackToDashboard,
 }) => {
   // Navigation sub-views: 'intake-chat' | 'history' | 'profile'
   const [activeSubTab, setActiveSubTab] = useState<'intake-chat' | 'history' | 'profile'>('intake-chat');
@@ -373,6 +376,23 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Return to Dashboard Navigation */}
+      {onBackToDashboard && (
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onBackToDashboard}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 text-xs font-bold transition-all shadow-xs"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>← Back to Patient Dashboard</span>
+          </button>
+
+          <span className="text-xs text-slate-400 font-medium">
+            AI Clinical Intake & Triage Session
+          </span>
+        </div>
+      )}
+
       {/* Emergency Alert Banner if triggered */}
       {emergencyAlert && (
         <EmergencyBanner
@@ -402,8 +422,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           <h1 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
             <span>Patient Consultation & Intake Portal</span>
             {currentPatient?.isReturning && (
-              <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold border border-emerald-300">
-                Returning Patient
+              <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-semibold border border-emerald-300">
+                {currentPatient?.fullName || fullName || 'Eleanor Hughes'}
               </span>
             )}
           </h1>

@@ -25,7 +25,7 @@ import {
 
 interface CsvDataImportViewProps {
   onRefreshParentData: () => void;
-  currentUserRole?: 'patient' | 'staff' | 'admin';
+  currentUserRole?: 'patient' | 'staff' | 'admin' | 'doctor';
 }
 
 export const CsvDataImportView: React.FC<CsvDataImportViewProps> = ({

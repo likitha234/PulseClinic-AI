@@ -127,9 +127,28 @@
         "isSynthetic": { "type": "boolean", "description": "Flag indicating synthetic test data" }
       },
       "required": ["id", "title", "expectedUrgency"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User account profile with role-based access attributes",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user account identifier" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "Display name of user" },
+        "role": { "type": "string", "description": "RBAC role: patient, doctor, staff, admin" },
+        "phone": { "type": "string", "description": "Contact telephone number" },
+        "status": { "type": "string", "description": "Account status: ACTIVE, PENDING_VERIFICATION, REJECTED" },
+        "createdAt": { "type": "string", "description": "Creation timestamp ISO" }
+      },
+      "required": ["uid", "email", "role"]
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Authentication and RBAC profiles for patients, doctors, and staff"
+    },
     "/patients/{patientId}": {
       "schema": "Patient",
       "description": "Collection of patient demographic and registration records"

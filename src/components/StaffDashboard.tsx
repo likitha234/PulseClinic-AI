@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Calendar,
@@ -16,6 +16,8 @@ import {
   ChevronRight,
   Filter,
   FileSpreadsheet,
+  Award,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Patient,
@@ -39,7 +41,7 @@ interface StaffDashboardProps {
   rebookingRequests: RebookingRequest[];
   executionLogs: AgentExecutionLog[];
   onRefreshData: () => void;
-  currentUserRole?: 'patient' | 'staff' | 'admin';
+  currentUserRole?: 'patient' | 'staff' | 'admin' | 'doctor';
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -61,6 +63,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
     | 'human-approvals'
     | 'appointments'
     | 'doctors'
+    | 'doctor-verifications'
     | 'rebooking'
     | 'emails'
     | 'patients'
@@ -69,6 +72,68 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
+  const [pendingDoctors, setPendingDoctors] = useState<any[]>([]);
+  const [verifyingDoctorId, setVerifyingDoctorId] = useState<string | null>(null);
+
+  const fetchPendingDoctors = async () => {
+    try {
+      const res = await fetch('/api/staff/doctors/pending');
+      const data = await res.json();
+      if (data.success) {
+        setPendingDoctors(data.data);
+      }
+    } catch (e) {
+      console.warn('Could not fetch pending doctors:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingDoctors();
+  }, []);
+
+  const handleApproveDoctor = async (doctorId: string) => {
+    setVerifyingDoctorId(doctorId);
+    try {
+      const res = await fetch(`/api/staff/doctors/${doctorId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffName: 'Dr. Sarah Jenkins (Staff)' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Doctor credentials verified and activated successfully!');
+        fetchPendingDoctors();
+        onRefreshData();
+      }
+    } catch (err: any) {
+      alert(`Approval error: ${err.message}`);
+    } finally {
+      setVerifyingDoctorId(null);
+    }
+  };
+
+  const handleRejectDoctor = async (doctorId: string) => {
+    const reason = prompt('Please enter reason for rejecting physician credentials:', 'Could not verify state license number.');
+    if (!reason) return;
+    setVerifyingDoctorId(doctorId);
+    try {
+      const res = await fetch(`/api/staff/doctors/${doctorId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Physician application rejected.');
+        fetchPendingDoctors();
+        onRefreshData();
+      }
+    } catch (err: any) {
+      alert(`Rejection error: ${err.message}`);
+    } finally {
+      setVerifyingDoctorId(null);
+    }
+  };
 
   // Compute stats
   const totalPatients = patients.length;
@@ -332,6 +397,17 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             }`}
           >
             Doctor Schedules ({doctors.length})
+          </button>
+          <button
+            onClick={() => setActiveSection('doctor-verifications')}
+            className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap flex items-center space-x-1.5 ${
+              activeSection === 'doctor-verifications'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-amber-800 hover:bg-amber-50'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>Doctor Verifications ({pendingDoctors.length})</span>
           </button>
           <button
             onClick={() => setActiveSection('rebooking')}
@@ -617,6 +693,107 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* SECTION: DOCTOR VERIFICATIONS (Requirement 8) */}
+          {activeSection === 'doctor-verifications' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-900">
+                      Physician Credentialing & License Verification Queue
+                    </h3>
+                    <p className="text-xs text-amber-800">
+                      Requirement 8: New physicians who register through the Doctor Portal are placed in <strong>PENDING_VERIFICATION</strong> status.
+                      Staff must verify their medical credentials before their calendar and intake routing are activated.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchPendingDoctors}
+                  className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 rounded-lg text-xs font-semibold hover:bg-amber-100 flex items-center space-x-1"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Refresh Queue</span>
+                </button>
+              </div>
+
+              {pendingDoctors.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200">
+                  <CheckCircle className="w-10 h-10 mx-auto text-emerald-500 mb-2" />
+                  <p className="text-sm font-bold text-slate-800">All Registered Physicians Are Verified</p>
+                  <p className="text-xs text-slate-500 mt-1">No doctor registrations currently pending staff review.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {pendingDoctors.map((doc) => (
+                    <div
+                      key={doc.uid}
+                      className="p-5 rounded-2xl border-2 border-amber-200 bg-white shadow-xs space-y-4"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 font-bold text-base">
+                            <Stethoscope className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900">{doc.displayName}</h4>
+                            <span className="text-xs text-teal-700 font-semibold">{doc.specialization}</span>
+                            <span className="block text-[11px] text-slate-400 font-mono">ID: {doc.uid}</span>
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          PENDING_VERIFICATION
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">State Medical License:</span>
+                          <span className="font-mono font-bold text-teal-800">{doc.licenseNumber || 'PENDING'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Qualifications:</span>
+                          <span className="font-semibold text-slate-700">{doc.qualification}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Clinical Experience:</span>
+                          <span className="text-slate-700">{doc.experience}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Contact Email:</span>
+                          <span className="text-slate-700">{doc.email}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Mobile Phone:</span>
+                          <span className="text-slate-700">{doc.phone || 'On file'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3 pt-2">
+                        <button
+                          onClick={() => handleApproveDoctor(doc.uid)}
+                          disabled={verifyingDoctorId === doc.uid}
+                          className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Verify & Activate Doctor</span>
+                        </button>
+                        <button
+                          onClick={() => handleRejectDoctor(doc.uid)}
+                          disabled={verifyingDoctorId === doc.uid}
+                          className="py-2 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-xs transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

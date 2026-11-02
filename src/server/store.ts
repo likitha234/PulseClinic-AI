@@ -323,6 +323,11 @@ class ClinicStore {
     return this.doctors.get(id);
   }
 
+  saveDoctor(doctor: Doctor): Doctor {
+    this.doctors.set(doctor.id, doctor);
+    return doctor;
+  }
+
   updateDoctorStatus(doctorId: string, status: Doctor['status']): boolean {
     const doc = this.doctors.get(doctorId);
     if (!doc) return false;

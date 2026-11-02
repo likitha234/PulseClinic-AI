@@ -29,7 +29,7 @@ export class CalendarService {
     };
   }
 
-  // Create appointment with atomic slot reservation & double-booking prevention
+  // Create appointment with atomic slot reservation & doctor approval workflow
   static async bookAppointment(params: {
     patientId: string;
     patientName: string;
@@ -39,6 +39,7 @@ export class CalendarService {
     chiefComplaint: string;
     urgency: Appointment['urgency'];
     sessionId?: string;
+    requireDoctorApproval?: boolean;
   }): Promise<{ appointment: Appointment; emailNotificationId?: string }> {
     const sessionId = params.sessionId || `session-${Date.now()}`;
     const reservation = await clinicStore.reserveSlot(params.slotId, sessionId);
@@ -58,6 +59,10 @@ export class CalendarService {
     const bookingCode = Math.floor(100000 + Math.random() * 900000);
     const bookingId = `BK-${bookingCode}`;
 
+    // Master Prompt Requirement 2: Appointments from intake require doctor review/approval
+    const requireApproval = params.requireDoctorApproval !== false;
+    const initialStatus: Appointment['status'] = requireApproval ? 'PENDING_DOCTOR_APPROVAL' : 'CONFIRMED';
+
     const appointment: Appointment = {
       id: `apt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       bookingId,
@@ -73,30 +78,160 @@ export class CalendarService {
       durationMinutes: doctor.slotDurationMinutes,
       clinicName: process.env.CLINIC_NAME || 'PulseCare Medical Center',
       clinicAddress: process.env.CLINIC_ADDRESS || '742 Evergreen Terrace, Medical Suite 400',
-      status: 'CONFIRMED',
+      status: initialStatus,
       urgency: params.urgency,
       chiefComplaint: params.chiefComplaint,
       patientAuthorizedRebooking: true,
+      rejectedDoctorIds: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     clinicStore.saveAppointment(appointment);
 
-    // Send confirmation email asynchronously with provider status tracking
+    // Only dispatch immediate confirmation email if auto-approved / confirmed
     let emailRecord;
-    try {
-      emailRecord = await sendAppointmentEmail({
-        appointment,
-        type: 'BOOKING_CONFIRMATION',
-      });
-      appointment.emailNotificationId = emailRecord.id;
-      clinicStore.saveAppointment(appointment);
-    } catch (err) {
-      console.error('[CalendarService] Failed to dispatch booking email:', err);
+    if (!requireApproval) {
+      try {
+        emailRecord = await sendAppointmentEmail({
+          appointment,
+          type: 'BOOKING_CONFIRMATION',
+        });
+        appointment.emailNotificationId = emailRecord.id;
+        clinicStore.saveAppointment(appointment);
+      } catch (err) {
+        console.error('[CalendarService] Failed to dispatch booking email:', err);
+      }
     }
 
     return { appointment, emailNotificationId: emailRecord?.id };
+  }
+
+  // Doctor Accepts Appointment -> Moves from PENDING_DOCTOR_APPROVAL to CONFIRMED
+  static async doctorAcceptAppointment(
+    appointmentId: string,
+    doctorId: string,
+    notes?: string
+  ): Promise<{ success: boolean; appointment: Appointment }> {
+    const apt = clinicStore.getAppointmentById(appointmentId);
+    if (!apt) {
+      throw new Error(`Appointment not found with ID: ${appointmentId}`);
+    }
+
+    // Update status to CONFIRMED
+    apt.status = 'CONFIRMED';
+    apt.doctorReviewedAt = new Date().toISOString();
+    apt.doctorReviewNotes = notes || 'Approved by physician for clinical consultation.';
+    apt.updatedAt = new Date().toISOString();
+    clinicStore.saveAppointment(apt);
+
+    // Now send the official booking confirmation email to the patient
+    try {
+      const emailRecord = await sendAppointmentEmail({
+        appointment: apt,
+        type: 'BOOKING_CONFIRMATION',
+        notes: notes || 'Your appointment has been formally approved by your doctor.',
+      });
+      apt.emailNotificationId = emailRecord.id;
+      clinicStore.saveAppointment(apt);
+    } catch (err) {
+      console.error('[CalendarService] Failed to dispatch confirmation email after doctor approval:', err);
+    }
+
+    return { success: true, appointment: apt };
+  }
+
+  // Doctor Rejects Appointment -> Releases slot, searches next eligible doctor, reassigns or sets EXHAUSTED
+  static async doctorRejectAppointment(
+    appointmentId: string,
+    doctorId: string,
+    reason?: string
+  ): Promise<{
+    success: boolean;
+    reassigned: boolean;
+    appointment: Appointment;
+    nextDoctorName?: string;
+    message?: string;
+  }> {
+    const apt = clinicStore.getAppointmentById(appointmentId);
+    if (!apt) {
+      throw new Error(`Appointment not found with ID: ${appointmentId}`);
+    }
+
+    const rejectingDoctor = clinicStore.getDoctorById(doctorId) || { name: apt.doctorName };
+
+    // 1. Release currently locked slot
+    const slots = clinicStore.getDoctorSlots(apt.doctorId, apt.date);
+    const lockedSlot = slots.find((s) => s.startTime === apt.time);
+    if (lockedSlot) {
+      clinicStore.releaseSlot(lockedSlot.slotId);
+    }
+
+    // 2. Track rejected doctor IDs to prevent circular loops
+    const rejectedList = new Set(apt.rejectedDoctorIds || []);
+    rejectedList.add(doctorId);
+    apt.rejectedDoctorIds = Array.from(rejectedList);
+
+    // 3. Find next active verified doctor with the SAME specialty
+    const activeSpecialists = clinicStore
+      .getDoctors()
+      .filter((d) => d.specialty === apt.doctorSpecialty && d.status === 'ACTIVE' && !rejectedList.has(d.id));
+
+    // Try each eligible specialist for an available slot
+    let reassignedSlot: DoctorSlot | null = null;
+    let nextDoctor: any = null;
+
+    for (const doc of activeSpecialists) {
+      // Look for slots on the requested date first, then nearby dates
+      const candidateSlots = clinicStore.getDoctorSlots(doc.id).filter((s) => !s.isBooked && s.date >= apt.date);
+      if (candidateSlots.length > 0) {
+        // Find best match slot (prefer same date or earliest next)
+        const sameDateSlot = candidateSlots.find((s) => s.date === apt.date);
+        const targetSlot = sameDateSlot || candidateSlots[0];
+
+        const reservation = await clinicStore.reserveSlot(targetSlot.slotId, `reassign-${Date.now()}`);
+        if (reservation.success && reservation.slot) {
+          reassignedSlot = reservation.slot;
+          nextDoctor = doc;
+          break;
+        }
+      }
+    }
+
+    if (reassignedSlot && nextDoctor) {
+      // Successfully found replacement doctor
+      apt.doctorId = nextDoctor.id;
+      apt.doctorName = nextDoctor.name;
+      apt.date = reassignedSlot.date;
+      apt.time = reassignedSlot.startTime;
+      apt.status = 'PENDING_DOCTOR_APPROVAL';
+      apt.reassignedFromDoctorId = doctorId;
+      apt.reassignedFromDoctorName = rejectingDoctor.name;
+      apt.cancellationReason = undefined;
+      apt.updatedAt = new Date().toISOString();
+      clinicStore.saveAppointment(apt);
+
+      return {
+        success: true,
+        reassigned: true,
+        appointment: apt,
+        nextDoctorName: nextDoctor.name,
+        message: `Appointment reassigned to ${nextDoctor.name} (${reassignedSlot.date} at ${reassignedSlot.startTime}), awaiting their clinical review.`,
+      };
+    }
+
+    // 4. If no eligible doctors or slots remain, mark REASSIGNMENT_EXHAUSTED
+    apt.status = 'REASSIGNMENT_EXHAUSTED';
+    apt.cancellationReason = reason || 'All specialist physicians in this department were unavailable for the requested slot.';
+    apt.updatedAt = new Date().toISOString();
+    clinicStore.saveAppointment(apt);
+
+    return {
+      success: true,
+      reassigned: false,
+      appointment: apt,
+      message: 'All eligible physicians have been consulted. No open slots remain. Please select an alternate date or time.',
+    };
   }
 
   // Cancel an appointment

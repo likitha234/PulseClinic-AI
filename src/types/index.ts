@@ -110,6 +110,9 @@ export type AppointmentStatus =
   | 'CANCELLED'
   | 'REBOOKED'
   | 'PENDING_APPROVAL'
+  | 'PENDING_DOCTOR_APPROVAL'
+  | 'REASSIGNED'
+  | 'REASSIGNMENT_EXHAUSTED'
   | 'COMPLETED';
 
 export interface Appointment {
@@ -135,6 +138,12 @@ export interface Appointment {
   rebookingNotes?: string;
   patientAuthorizedRebooking?: boolean;
   emailNotificationId?: string;
+  rejectedDoctorIds?: string[];
+  reassignedFromDoctorId?: string;
+  reassignedFromDoctorName?: string;
+  doctorReviewNotes?: string;
+  doctorReviewedAt?: string;
+  handoffSummary?: DoctorHandoffSummary;
   createdAt: string;
   updatedAt: string;
 }
@@ -357,5 +366,224 @@ export interface CsvTestSuiteResult {
   passed: boolean;
   details: string;
   error?: string;
+}
+
+export interface MedicalRecordReport {
+  id: string;
+  patientId: string;
+  title: string;
+  category: 'LAB_REPORT' | 'CARDIOLOGY' | 'IMAGING' | 'CLINICAL_SUMMARY';
+  date: string;
+  doctorName: string;
+  summary: string;
+  status: 'NORMAL' | 'EVALUATED' | 'ATTENTION_NEEDED';
+  metrics?: { name: string; value: string; referenceRange: string; status: 'NORMAL' | 'HIGH' | 'LOW' }[];
+}
+
+export interface Prescription {
+  id: string;
+  patientId: string;
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  prescribedBy: string;
+  startDate: string;
+  endDate?: string;
+  status: 'ACTIVE' | 'COMPLETED' | 'DISCONTINUED';
+  instructions: string;
+  refillsRemaining: number;
+}
+
+export interface MonthlyCheckIn {
+  id: string;
+  patientId: string;
+  checkInDate: string;
+  status: 'COMPLETED' | 'DUE_SOON' | 'IN_PROGRESS' | 'SCHEDULED';
+  nextCheckInDate: string;
+  vitals: {
+    bloodPressure?: string;
+    heartRate?: number;
+    weightKg?: number;
+    temperatureC?: number;
+    oxygenSaturation?: number;
+  };
+  wellnessScore: number;
+  symptomsReported: string[];
+  lifestyleNotes?: string;
+  aiAssessment?: string;
+}
+
+export interface HealthTimelineEvent {
+  id: string;
+  patientId: string;
+  date: string;
+  type: 'APPOINTMENT' | 'CHECK_IN' | 'TRIAGE' | 'PRESCRIPTION' | 'LAB_REPORT' | 'NOTE';
+  title: string;
+  description: string;
+  badgeText: string;
+  urgency?: TriageUrgency;
+  doctorName?: string;
+}
+
+export interface PatientNotification {
+  id: string;
+  patientId: string;
+  recipientEmail: string;
+  type: 'APPOINTMENT_REMINDER' | 'RESCHEDULE_ALERT' | 'CARE_TEAM_MESSAGE' | 'CHECK_IN_DUE' | 'LAB_READY';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  priority: 'HIGH' | 'NORMAL' | 'LOW';
+  relatedId?: string;
+}
+
+export interface PatientDashboardData {
+  patientProfile: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    dateOfBirth?: string;
+    gender?: string;
+    age?: number;
+    bloodGroup?: string;
+    emergencyContact?: {
+      name: string;
+      phone: string;
+      relationship: string;
+    };
+    medicalHistory: {
+      chronicConditions: string[];
+      allergies: string[];
+      currentMedications: string[];
+      surgeries: string[];
+      previousVisitsCount: number;
+      lastVisitDate?: string;
+    };
+    notificationPreferences?: {
+      emailAlerts: boolean;
+      smsReminders: boolean;
+    };
+  };
+  appointments: {
+    upcoming: Appointment[];
+    pending: Appointment[];
+    completed: Appointment[];
+    cancelled: Appointment[];
+  };
+  medicalRecords: {
+    reports: MedicalRecordReport[];
+    prescriptions: Prescription[];
+    medicalHistory: {
+      chronicConditions: string[];
+      allergies: string[];
+      currentMedications: string[];
+      surgeries: string[];
+      previousVisitsCount: number;
+      lastVisitDate?: string;
+    };
+  };
+  monthlyCheckIn: {
+    nextCheckInDate: string;
+    status: 'COMPLETED' | 'DUE_SOON' | 'IN_PROGRESS' | 'SCHEDULED';
+    lastCompletedDate?: string;
+    history: MonthlyCheckIn[];
+  };
+  healthTimeline: HealthTimelineEvent[];
+  notifications: PatientNotification[];
+}
+
+export interface DoctorHandoffSummary {
+  id: string;
+  appointmentId: string;
+  patientId: string;
+  patientName: string;
+  generatedAt: string;
+  demographics: {
+    age?: number;
+    gender?: string;
+    bloodGroup?: string;
+  };
+  triageAssessment: {
+    chiefComplaint: string;
+    urgency: TriageUrgency;
+    symptomsIdentified: string[];
+    suggestedSpecialty: string;
+    triageReasoning: string;
+  };
+  relevantMedicalHistory: {
+    chronicConditions: string[];
+    allergies: string[];
+    currentMedications: string[];
+    surgeries: string[];
+  };
+  previousVisitsSummary: string;
+  recentLabHighlights: {
+    date: string;
+    title: string;
+    keyFindings: string[];
+    abnormalBiomarkers?: string[];
+  }[];
+  recentCheckInSummary?: {
+    date: string;
+    wellnessScore: number;
+    reportedVitals: Record<string, any>;
+    lifestyleNotes?: string;
+  };
+  clinicalConcernsAndFocusAreas: string[];
+  recommendedClinicalQuestions: string[];
+  clinicalDisclaimer: string;
+}
+
+export type BiomarkerStatus = 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL';
+export type BiomarkerTrend = 'INCREASED' | 'DECREASED' | 'STABLE';
+
+export interface BiomarkerValue {
+  name: string;
+  value: number;
+  unit: string;
+  referenceRange: string;
+  status: BiomarkerStatus;
+  trend?: BiomarkerTrend;
+  delta?: number;
+  deltaPercent?: number;
+}
+
+export interface ReportBiomarkerComparison {
+  biomarkerName: string;
+  unit: string;
+  referenceRange: string;
+  historicalReadings: {
+    date: string;
+    reportId: string;
+    reportTitle: string;
+    value: number;
+    status: BiomarkerStatus;
+  }[];
+  latestValue: number;
+  latestStatus: BiomarkerStatus;
+  previousValue?: number;
+  trend: BiomarkerTrend;
+  interpretation: string;
+}
+
+export interface CheckInChatMessage {
+  id: string;
+  sender: 'ai' | 'patient' | 'system';
+  text: string;
+  timestamp: string;
+  language?: SupportedLanguage;
+  isRedFlagWarning?: boolean;
+}
+
+export type SupportedLanguage = 'en' | 'te' | 'hi';
+
+export interface LanguageConfig {
+  code: SupportedLanguage;
+  label: string;
+  nativeLabel: string;
+  speechCode: string;
+  welcomeMessage: string;
 }
 

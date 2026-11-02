@@ -21,7 +21,11 @@ import { EvaluationEngine } from './src/server/evaluator.ts';
 import { createBrowserbaseSession } from './src/server/browserbase.ts';
 import { sendAppointmentEmail } from './src/server/email.ts';
 import { importCsvFile, runCsvImportTestSuite } from './src/server/csvImporter.ts';
-import { getLiveFirestoreCollectionStats, verifyFirestoreConnection } from './src/server/firebase.ts';
+import { AuthService } from './src/server/auth.ts';
+import { PatientService } from './src/server/patientService.ts';
+import { DoctorHandoffService } from './src/server/doctorHandoffService.ts';
+import { MonthlyCheckinAgent } from './src/server/monthlyCheckinAgent.ts';
+import { ReportComparisonService } from './src/server/reportComparisonService.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +33,176 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
+
+  // --- AUTHENTICATION & RBAC ENDPOINTS ---
+  app.get('/api/auth/config', (req: Request, res: Response) => {
+    res.json({
+      success: true,
+      data: AuthService.getFirebaseStatus(),
+    });
+  });
+
+  app.post('/api/auth/patient/register', async (req: Request, res: Response) => {
+    try {
+      const result = await AuthService.registerPatient(req.body);
+      res.status(201).json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/auth/doctor/register', async (req: Request, res: Response) => {
+    try {
+      const result = await AuthService.registerDoctor(req.body);
+      res.status(201).json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/auth/login', async (req: Request, res: Response) => {
+    try {
+      const result = await AuthService.login(req.body);
+      res.json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(401).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
+    try {
+      const result = await AuthService.requestPasswordReset(req.body.email);
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/auth/logout', (req: Request, res: Response) => {
+    const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+    AuthService.logout(token);
+    res.json({ success: true, message: 'Signed out successfully.' });
+  });
+
+  app.get('/api/auth/me', (req: Request, res: Response) => {
+    const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+    const user = AuthService.verifySession(token);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Session expired or invalid.' });
+    }
+    res.json({ success: true, data: user });
+  });
+
+  // --- AUTHENTICATED PATIENT DASHBOARD ENDPOINTS ---
+  app.get('/api/patient/dashboard', async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Authentication required. Please sign in.' });
+      }
+
+      if (user.role !== 'patient' && user.role !== 'admin' && user.role !== 'staff') {
+        return res.status(403).json({ success: false, error: 'Access restricted to patients.' });
+      }
+
+      const dashboardData = await PatientService.getPatientDashboardData(user.email, user.uid, user.displayName);
+      res.json({ success: true, data: dashboardData });
+    } catch (err: any) {
+      console.error('[PatientDashboard] Error fetching dashboard data:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/patient/check-in', async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+
+      const result = await PatientService.submitCheckIn(user.email, user.uid, req.body);
+      res.json({ success: true, data: result, message: 'Monthly health check-in recorded successfully.' });
+    } catch (err: any) {
+      console.error('[PatientDashboard] Error submitting check-in:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.put('/api/patient/profile', async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+
+      const result = await PatientService.updatePatientProfile(user.email, user.uid, req.body);
+      res.json({ success: true, data: result });
+    } catch (err: any) {
+      console.error('[PatientDashboard] Error updating profile:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/patient/notifications/:id/read', (req: Request, res: Response) => {
+    const success = PatientService.markNotificationRead(req.params.id);
+    res.json({ success });
+  });
+
+  app.post('/api/patient/appointments/:id/cancel', async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+
+      const apt = clinicStore.getAppointmentById(req.params.id);
+      if (!apt) {
+        return res.status(404).json({ success: false, error: 'Appointment not found.' });
+      }
+
+      // Verify ownership
+      if (apt.patientEmail.toLowerCase() !== user.email.toLowerCase() && apt.patientId !== user.uid && user.role !== 'staff') {
+        return res.status(403).json({ success: false, error: 'Access denied: You can only cancel your own appointments.' });
+      }
+
+      const reason = req.body.reason || 'Cancelled by patient from portal dashboard';
+      const cancelled = await CalendarService.cancelAppointment(req.params.id, reason);
+      res.json({ success: true, data: cancelled });
+    } catch (err: any) {
+      console.error('[PatientDashboard] Error cancelling appointment:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Doctor Verification by Staff
+  app.get('/api/staff/doctors/pending', (req: Request, res: Response) => {
+    const users = AuthService.getAllUsers().filter((u) => u.role === 'doctor' && u.status === 'PENDING_VERIFICATION');
+    res.json({ success: true, data: users });
+  });
+
+  app.post('/api/staff/doctors/:id/approve', async (req: Request, res: Response) => {
+    try {
+      const staffName = req.body.staffName || 'Dr. Sarah Jenkins (Staff)';
+      const approved = await AuthService.approveDoctor(req.params.id, staffName);
+      res.json({ success: true, data: approved });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/staff/doctors/:id/reject', async (req: Request, res: Response) => {
+    try {
+      const reason = req.body.reason || 'Medical credentials could not be verified with state registry.';
+      const rejected = await AuthService.rejectDoctor(req.params.id, reason);
+      res.json({ success: true, data: rejected });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
 
   // Health and System Integrations Status
   app.get('/api/system/status', (req: Request, res: Response) => {
@@ -120,6 +294,136 @@ async function startServer() {
       });
       res.json({ success: true, data: rebooked });
     } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  // Doctor Approval: Accept Appointment Request
+  app.post('/api/appointments/:id/doctor-accept', async (req: Request, res: Response) => {
+    try {
+      const { doctorId, notes } = req.body;
+      const result = await CalendarService.doctorAcceptAppointment(
+        req.params.id,
+        doctorId || 'doc-cardio-1',
+        notes
+      );
+      res.json({ success: true, data: result.appointment });
+    } catch (err: any) {
+      console.error('[DoctorAccept] Error accepting appointment:', err);
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  // Doctor Approval: Reject Appointment Request & Auto-Reassign
+  app.post('/api/appointments/:id/doctor-reject', async (req: Request, res: Response) => {
+    try {
+      const { doctorId, reason } = req.body;
+      const result = await CalendarService.doctorRejectAppointment(
+        req.params.id,
+        doctorId || 'doc-cardio-1',
+        reason
+      );
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      console.error('[DoctorReject] Error rejecting appointment:', err);
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  // AI Doctor Clinical Handoff Summary
+  app.get('/api/appointments/:id/handoff-summary', async (req: Request, res: Response) => {
+    try {
+      const summary = await DoctorHandoffService.generateHandoffSummary(req.params.id);
+      res.json({ success: true, data: summary });
+    } catch (err: any) {
+      console.error('[HandoffSummary] Error generating handoff summary:', err);
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  // Conversational Monthly AI Health Check-in: Session Start/Resume
+  app.get('/api/patient/check-in/session', (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      const patientEmail = user?.email || (req.query.email as string) || 'eleanor.hughes@example.com';
+      const patientId = user?.uid || (req.query.patientId as string) || 'pat-eleanor-01';
+      const patientName = user?.displayName || (req.query.name as string) || 'Eleanor Hughes';
+      const language = (req.query.language as any) || 'en';
+
+      const session = MonthlyCheckinAgent.getOrCreateSession({
+        patientId,
+        patientEmail,
+        patientName,
+        language,
+      });
+
+      res.json({ success: true, data: session });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Conversational Monthly AI Health Check-in: Multi-turn Chat
+  app.post('/api/patient/check-in/conversation', async (req: Request, res: Response) => {
+    try {
+      const { sessionId, messageText, language } = req.body;
+      if (!sessionId || !messageText) {
+        return res.status(400).json({ success: false, error: 'sessionId and messageText are required.' });
+      }
+
+      const result = await MonthlyCheckinAgent.processTurn({
+        sessionId,
+        messageText,
+        language,
+      });
+
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      console.error('[MonthlyCheckinAgent] Error in conversation turn:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Medical Report Longitudinal Comparison
+  app.get('/api/patient/reports/comparison', async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      const email = user?.email || (req.query.email as string) || 'eleanor.hughes@example.com';
+      const uid = user?.uid || (req.query.patientId as string) || 'pat-eleanor-01';
+      const name = user?.displayName || (req.query.name as string) || 'Eleanor Hughes';
+
+      const comparison = await ReportComparisonService.getPatientReportComparison(email, uid, name);
+      res.json({ success: true, data: comparison });
+    } catch (err: any) {
+      console.error('[ReportComparison] Error generating comparison:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Diagnostic Report Upload
+  app.post('/api/patient/reports/upload', async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || (req.headers['x-session-token'] as string);
+      const user = AuthService.verifySession(token);
+      const email = user?.email || req.body.patientEmail || 'eleanor.hughes@example.com';
+      const uid = user?.uid || req.body.patientId || 'pat-eleanor-01';
+
+      const newReport = await ReportComparisonService.uploadReport({
+        patientEmail: email,
+        patientId: uid,
+        title: req.body.title || 'Laboratory Biomarker Diagnostic Panel',
+        category: req.body.category || 'LAB_REPORT',
+        date: req.body.date,
+        doctorName: req.body.doctorName,
+        summary: req.body.summary,
+        metrics: req.body.metrics || [],
+      });
+
+      res.status(201).json({ success: true, data: newReport });
+    } catch (err: any) {
+      console.error('[ReportUpload] Error uploading report:', err);
       res.status(400).json({ success: false, error: err.message });
     }
   });
