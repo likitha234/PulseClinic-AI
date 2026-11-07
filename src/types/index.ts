@@ -22,6 +22,7 @@ export interface Patient {
   dateOfBirth?: string;
   age?: number;
   gender?: string;
+  bloodGroup?: string;
   isReturning: boolean;
   medicalHistory: {
     chronicConditions: string[];
@@ -113,7 +114,18 @@ export type AppointmentStatus =
   | 'PENDING_DOCTOR_APPROVAL'
   | 'REASSIGNED'
   | 'REASSIGNMENT_EXHAUSTED'
+  | 'AWAITING_STAFF_INTERVENTION'
   | 'COMPLETED';
+
+export interface ReassignmentHistoryEntry {
+  sequence: number;
+  doctorId: string;
+  doctorName: string;
+  specialty: string;
+  decision: 'REJECTED' | 'ACCEPTED' | 'AUTO_REASSIGNED';
+  reason?: string;
+  timestamp: string;
+}
 
 export interface Appointment {
   id: string;
@@ -141,6 +153,7 @@ export interface Appointment {
   rejectedDoctorIds?: string[];
   reassignedFromDoctorId?: string;
   reassignedFromDoctorName?: string;
+  reassignmentHistory?: ReassignmentHistoryEntry[];
   doctorReviewNotes?: string;
   doctorReviewedAt?: string;
   handoffSummary?: DoctorHandoffSummary;
@@ -376,8 +389,8 @@ export interface MedicalRecordReport {
   date: string;
   doctorName: string;
   summary: string;
-  status: 'NORMAL' | 'EVALUATED' | 'ATTENTION_NEEDED';
-  metrics?: { name: string; value: string; referenceRange: string; status: 'NORMAL' | 'HIGH' | 'LOW' }[];
+  status: 'NORMAL' | 'EVALUATED' | 'ATTENTION_NEEDED' | 'HIGH' | 'CRITICAL';
+  metrics?: { name: string; value: string; referenceRange: string; status: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL' }[];
 }
 
 export interface Prescription {
@@ -552,6 +565,9 @@ export interface BiomarkerValue {
 
 export interface ReportBiomarkerComparison {
   biomarkerName: string;
+  name?: string;
+  biomarkerKey?: string;
+  category?: string;
   unit: string;
   referenceRange: string;
   historicalReadings: {
@@ -561,10 +577,14 @@ export interface ReportBiomarkerComparison {
     value: number;
     status: BiomarkerStatus;
   }[];
+  historicalValues?: { reportDate: string; value: string; status: string }[];
   latestValue: number;
+  currentValue?: string;
   latestStatus: BiomarkerStatus;
+  status?: string;
   previousValue?: number;
   trend: BiomarkerTrend;
+  changeTrend?: 'INCREASED' | 'DECREASED' | 'STABLE';
   interpretation: string;
 }
 

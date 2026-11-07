@@ -18,6 +18,12 @@ import {
   Info,
   XCircle,
   Check,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Globe,
+  Sparkles,
 } from 'lucide-react';
 import {
   Patient,
@@ -25,6 +31,7 @@ import {
   DoctorSlot,
   Appointment,
   TriageAssessment,
+  SupportedLanguage,
 } from '../types/index.ts';
 import { EmergencyBanner } from './EmergencyBanner.tsx';
 
@@ -100,6 +107,116 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [rebookingLoading, setRebookingLoading] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Requirement 8: Multilingual Voice Assistant (Telugu, Hindi, English)
+  const [language, setLanguage] = useState<SupportedLanguage>('en');
+  const [isListening, setIsListening] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
+  const startVoiceInput = async () => {
+    setSpeechError(null);
+
+    // Check browser support
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechError('Speech recognition is not supported in this browser. Please type your message.');
+      return;
+    }
+
+    // Pre-flight microphone permission check
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Close tracks immediately after permission check
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (permErr: any) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          setSpeechError('Microphone permission was not allowed by the browser. Please click the camera/mic icon in the address bar to enable microphone access, or type your message below.');
+          return;
+        } else {
+          console.warn('[Microphone] Permission query error:', permErr);
+        }
+      }
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = language === 'te' ? 'te-IN' : language === 'hi' ? 'hi-IN' : 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setSpeechError(null);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          // Convert speech into editable chat text before submission
+          setInputMessage((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('[Speech] Recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          setSpeechError('Microphone permission denied. Please allow microphone access in your browser settings to speak, or type your message in the chat.');
+        } else if (event.error !== 'no-speech') {
+          setSpeechError(`Voice input: ${event.error}. You can continue typing.`);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (err: any) {
+      setIsListening(false);
+      setSpeechError(err.message || 'Unable to start speech recognition.');
+    }
+  };
+
+  const stopVoiceInput = () => {
+    setIsListening(false);
+  };
+
+  const speakText = (text: string) => {
+    if (!ttsEnabled || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/[*#_\[\]⚠️🎉📋]/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = language === 'te' ? 'te-IN' : language === 'hi' ? 'hi-IN' : 'en-US';
+      utterance.rate = 0.95;
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn('[TTS] Synthesis error:', err);
+    }
+  };
+
+  const handleLanguageChange = (newLang: SupportedLanguage) => {
+    setLanguage(newLang);
+    const greetings: Record<SupportedLanguage, string> = {
+      en: `Language changed to English. How can I assist you with your symptoms today?`,
+      te: `భాష తెలుగుగా మార్చబడింది. మీ లక్షణాలను లేదా ఆరోగ్య సమస్యలను తెలపండి. నేను మీకు సహాయం చేస్తాను.`,
+      hi: `भाषा बदलकर हिन्दी कर दी गई है। कृपया अपने लक्षण या स्वास्थ्य समस्या साझा करें। मैं आपकी सहायता के लिए तैयार हूँ।`,
+    };
+    const greeting = greetings[newLang] || greetings.en;
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: 'assistant',
+        text: greeting,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+    if (ttsEnabled) speakText(greeting);
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -184,6 +301,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             phone: phone || currentPatient?.phone || '+1 555-0100',
             age: Number(age) || 35,
           },
+          language,
         }),
       });
 
@@ -219,6 +337,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           },
         ]);
+        speakText(reply);
       } else {
         const errMsg = json.error || 'The AI assistant encountered an issue generating a response.';
         setChatError(errMsg);
@@ -284,14 +403,21 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         setAvailableSlots([]);
         onRefreshData();
 
+        const isPendingApproval = json.data.status === 'PENDING_DOCTOR_APPROVAL';
+        const confirmationMsg = isPendingApproval
+          ? `📋 Appointment Request Submitted (Pending Doctor Approval): Your requested consultation with ${json.data.doctorName} for ${json.data.date} at ${json.data.time} (Booking ID: ${json.data.bookingId}) has been reserved. In accordance with clinical safety guidelines, your appointment is currently pending physician clinical review. Once Dr. ${json.data.doctorName} accepts, you will receive an official confirmation notification.`
+          : `🎉 Success! Your appointment has been officially confirmed with ${json.data.doctorName} for ${json.data.date} at ${json.data.time}. Booking Reference: ${json.data.bookingId}. A confirmation email notification has been dispatched to ${json.data.patientEmail}.`;
+
         setMessages((prev) => [
           ...prev,
           {
             sender: 'assistant',
-            text: `🎉 Success! Your appointment has been officially confirmed with ${json.data.doctorName} for ${json.data.date} at ${json.data.time}. Booking Reference: ${json.data.bookingId}. A confirmation email notification has been dispatched to ${json.data.patientEmail}.`,
+            text: confirmationMsg,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           },
         ]);
+
+        speakText(confirmationMsg);
       } else {
         alert(json.error || 'Failed to book slot.');
       }
@@ -468,153 +594,69 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       {/* SUB-VIEW 1: INTAKE CHAT & BOOKING */}
       {activeSubTab === 'intake-chat' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Side: Patient Identity & Intake Card (4 cols) */}
+          {/* Left Side: Authenticated Patient Profile & Triage (4 cols) */}
           <div className="lg:col-span-4 space-y-4">
-            {/* Identification Toggle Card */}
+            {/* Authenticated Patient Identification Card */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center">
-                <User className="w-4 h-4 mr-2 text-teal-600" />
-                Patient Identification
-              </h2>
-
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setPatientType('returning')}
-                  className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
-                    patientType === 'returning'
-                      ? 'bg-teal-50 border-teal-500 text-teal-800 ring-2 ring-teal-200'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  Returning Patient
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPatientType('new')}
-                  className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
-                    patientType === 'new'
-                      ? 'bg-teal-50 border-teal-500 text-teal-800 ring-2 ring-teal-200'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  New Patient
-                </button>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-slate-900 flex items-center">
+                  <User className="w-4 h-4 mr-2 text-teal-600" />
+                  Patient Profile
+                </h2>
+                <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full flex items-center space-x-1">
+                  <CheckCircle className="w-3 h-3 text-teal-600" />
+                  <span>Authenticated</span>
+                </span>
               </div>
 
-              {/* Returning Patient Lookup Form */}
-              {patientType === 'returning' ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Lookup by Email or Phone
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={returningLookupQuery}
-                        onChange={(e) => setReturningLookupQuery(e.target.value)}
-                        placeholder="e.g. eleanor.hughes@example.com"
-                        className="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden"
-                      />
-                      <button
-                        onClick={handleLookupReturningPatient}
-                        disabled={lookupLoading}
-                        className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-                      >
-                        {lookupLoading ? '...' : 'Verify'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {lookupError && (
-                    <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg">{lookupError}</p>
-                  )}
-
-                  {currentPatient?.isReturning && (
-                    <div className="bg-teal-50/60 border border-teal-200 rounded-xl p-3 text-xs space-y-1">
-                      <p className="font-semibold text-teal-900 flex items-center">
-                        <CheckCircle className="w-3.5 h-3.5 text-teal-600 mr-1.5" />
-                        Verified: {currentPatient.fullName}
-                      </p>
-                      <p className="text-slate-600">Allergies: {currentPatient.medicalHistory.allergies.join(', ') || 'None'}</p>
-                      <p className="text-slate-600">Medications: {currentPatient.medicalHistory.currentMedications.join(', ') || 'None'}</p>
-                      <p className="text-slate-500 text-[11px]">Last visit: {currentPatient.medicalHistory.lastVisitDate || '2026-08-14'}</p>
-                    </div>
+              {/* Display Logged-in Patient Verified Info */}
+              <div className="space-y-3">
+                <div className="p-3 bg-gradient-to-br from-teal-50/70 to-slate-50 rounded-xl border border-teal-100">
+                  <p className="font-bold text-slate-900 text-sm">{currentPatient?.fullName || fullName || 'Patient'}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{currentPatient?.email || email}</p>
+                  <p className="text-xs text-slate-500">{currentPatient?.phone || phone || 'Phone verified'}</p>
+                  {currentPatient?.dateOfBirth && (
+                    <p className="text-[11px] text-slate-500 mt-1">DOB: {currentPatient.dateOfBirth}</p>
                   )}
                 </div>
-              ) : (
-                /* New Patient Intake Form */
-                <div className="space-y-3">
+
+                {/* Clinical History & Allergies from Firestore */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-2">
+                  <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                    <span className="font-semibold uppercase tracking-wider text-slate-600">Medical Memory</span>
+                    <span>Firestore Synced</span>
+                  </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Full Legal Name *</label>
-                    <input
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Liam Henderson"
-                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden"
-                    />
+                    <span className="font-medium text-slate-700 block text-[11px]">Known Allergies:</span>
+                    <span className="text-slate-600">
+                      {currentPatient?.medicalHistory?.allergies?.length
+                        ? currentPatient.medicalHistory.allergies.join(', ')
+                        : 'No known drug allergies reported'}
+                    </span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Email *</label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="name@email.com"
-                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Phone *</label>
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+1 555-0199"
-                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden"
-                      />
-                    </div>
+                  <div>
+                    <span className="font-medium text-slate-700 block text-[11px]">Chronic Conditions:</span>
+                    <span className="text-slate-600">
+                      {currentPatient?.medicalHistory?.chronicConditions?.length
+                        ? currentPatient.medicalHistory.chronicConditions.join(', ')
+                        : 'None recorded'}
+                    </span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Age</label>
-                      <input
-                        type="number"
-                        value={age}
-                        onChange={(e) => setAge(e.target.value)}
-                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Known Allergies</label>
-                      <input
-                        type="text"
-                        value={allergiesInput}
-                        onChange={(e) => setAllergiesInput(e.target.value)}
-                        placeholder="e.g. Penicillin, Latex"
-                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-2">
-                    <label className="flex items-start space-x-2 text-[11px] text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={consentChecked}
-                        onChange={(e) => setConsentChecked(e.target.checked)}
-                        className="mt-0.5 rounded text-teal-600 focus:ring-teal-500"
-                      />
-                      <span>I consent to storage of clinical intake data for triage and appointment scheduling.</span>
-                    </label>
+                  <div>
+                    <span className="font-medium text-slate-700 block text-[11px]">Current Medications:</span>
+                    <span className="text-slate-600">
+                      {currentPatient?.medicalHistory?.currentMedications?.length
+                        ? currentPatient.medicalHistory.currentMedications.join(', ')
+                        : 'None on file'}
+                    </span>
                   </div>
                 </div>
-              )}
+
+                <div className="text-[11px] text-teal-700 flex items-center space-x-1.5 px-1">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>Clinical agent automatically personalizes intake from this profile.</span>
+                </div>
+              </div>
             </div>
 
             {/* Current Triage Assessment Card */}
@@ -651,15 +693,66 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           <div className="lg:col-span-8 flex flex-col space-y-4">
             {/* Chat Conversation Box */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col h-[520px]">
-              {/* Chat Header */}
-              <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 rounded-t-2xl">
+              {/* Chat Header with Multilingual & Voice Controls */}
+              <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 rounded-t-2xl">
                 <div className="flex items-center space-x-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-xs font-bold text-slate-800">
-                    PulseClinic Intake Assistant (Gemini Multi-Step Engine)
+                    PulseClinic AI Intake
+                  </span>
+                  <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold">
+                    Multilingual Voice Agent
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-500">Interactive Intake • Enter to send</span>
+
+                {/* Multilingual Selector & TTS Toggle */}
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center bg-white rounded-lg border border-slate-200 p-0.5 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleLanguageChange('en')}
+                      className={`px-2 py-1 rounded-md transition-colors ${
+                        language === 'en' ? 'bg-teal-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Switch to English"
+                    >
+                      English
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLanguageChange('te')}
+                      className={`px-2 py-1 rounded-md transition-colors ${
+                        language === 'te' ? 'bg-teal-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="తెలుగు భాషలోకి మారండి"
+                    >
+                      తెలుగు
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLanguageChange('hi')}
+                      className={`px-2 py-1 rounded-md transition-colors ${
+                        language === 'hi' ? 'bg-teal-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="हिन्दी भाषा में बदलें"
+                    >
+                      हिन्दी
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTtsEnabled(!ttsEnabled)}
+                    className={`p-1.5 rounded-lg border transition-colors ${
+                      ttsEnabled
+                        ? 'bg-teal-50 border-teal-300 text-teal-700'
+                        : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
+                    }`}
+                    title={ttsEnabled ? 'Voice reading enabled (Click to mute)' : 'Click to enable voice reading'}
+                  >
+                    {ttsEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               {/* Chat Messages Scrollable Container */}
@@ -778,7 +871,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </button>
               </div>
 
-              {/* Chat Input Form */}
+              {/* Voice Speech Error Notice */}
+              {speechError && (
+                <div className="px-4 py-1.5 bg-amber-50 border-t border-amber-200 text-[11px] text-amber-800 flex items-center justify-between">
+                  <span>{speechError}</span>
+                  <button onClick={() => setSpeechError(null)} className="text-amber-600 font-bold ml-2">Dismiss</button>
+                </div>
+              )}
+
+              {/* Chat Input Form with Voice Microphone Button */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -786,12 +887,38 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 }}
                 className="p-3 bg-white border-t border-slate-200 flex items-center gap-2"
               >
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  disabled={isProcessing}
+                  className={`p-2.5 rounded-xl border transition-colors shrink-0 ${
+                    isListening
+                      ? 'bg-red-500 text-white border-red-600 animate-pulse shadow-md'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-teal-700 hover:bg-teal-50 hover:border-teal-300'
+                  }`}
+                  title={
+                    isListening
+                      ? 'Listening... Speak into microphone'
+                      : `Click to speak (${language === 'te' ? 'Telugu' : language === 'hi' ? 'Hindi' : 'English'})`
+                  }
+                >
+                  {isListening ? <MicOff className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4" />}
+                </button>
+
                 <textarea
                   rows={1}
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type your symptom or message... (Enter to send, Shift+Enter for new line)"
+                  placeholder={
+                    isListening
+                      ? `Listening in ${language === 'te' ? 'Telugu' : language === 'hi' ? 'Hindi' : 'English'}...`
+                      : language === 'te'
+                      ? 'మీ లక్షణాలను ఇక్కడ టైప్ చేయండి లేదా మాట్లాడండి...'
+                      : language === 'hi'
+                      ? 'अपने लक्षण यहाँ लिखें या बोलें...'
+                      : 'Type your symptom or message... (or click Mic to speak)'
+                  }
                   disabled={isProcessing}
                   className="flex-1 text-xs sm:text-sm px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-hidden resize-none min-h-[42px] max-h-24 disabled:bg-slate-50"
                 />
@@ -885,17 +1012,43 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
             {/* Official Booking Confirmation Card */}
             {bookingConfirmed && (
-              <div className="bg-white rounded-2xl border-2 border-emerald-500 p-6 shadow-md space-y-4">
-                <div className="flex items-center space-x-3 border-b border-emerald-100 pb-4">
-                  <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
-                    <CheckCircle className="w-6 h-6" />
+              <div
+                className={`bg-white rounded-2xl border-2 p-6 shadow-md space-y-4 ${
+                  bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL'
+                    ? 'border-amber-400'
+                    : 'border-emerald-500'
+                }`}
+              >
+                <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+                  <div
+                    className={`p-2.5 rounded-xl ${
+                      bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL' ? (
+                      <Clock className="w-6 h-6" />
+                    ) : (
+                      <CheckCircle className="w-6 h-6" />
+                    )}
                   </div>
                   <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      Booking Confirmed & Verified
+                    <span
+                      className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                        bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL'
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}
+                    >
+                      {bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL'
+                        ? 'Pending Physician Clinical Review'
+                        : 'Booking Confirmed & Verified'}
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                      Consultation Successfully Scheduled!
+                      {bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL'
+                        ? 'Appointment Request Submitted to Doctor'
+                        : 'Consultation Successfully Scheduled!'}
                     </h3>
                   </div>
                 </div>
@@ -910,7 +1063,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <span className="font-semibold text-slate-800">{bookingConfirmed.doctorName} ({bookingConfirmed.doctorSpecialty})</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">Scheduled Date & Time:</span>
+                    <span className="text-slate-400 block">Requested Date & Time:</span>
                     <span className="font-semibold text-slate-800">{bookingConfirmed.date} at {bookingConfirmed.time}</span>
                   </div>
                   <div>
@@ -919,10 +1072,25 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900 flex items-start space-x-2">
-                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div
+                  className={`p-3 rounded-xl text-xs flex items-start space-x-2 border ${
+                    bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL'
+                      ? 'bg-amber-50/70 border-amber-200 text-amber-900'
+                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                  }`}
+                >
+                  <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                   <div>
-                    <strong>Patient Instructions:</strong> Please arrive <strong>15 minutes prior</strong> for clinical intake registration. A confirmation email has been logged to your email address ({bookingConfirmed.patientEmail}).
+                    {bookingConfirmed.status === 'PENDING_DOCTOR_APPROVAL' ? (
+                      <>
+                        <strong>Doctor Review in Progress:</strong> Dr. {bookingConfirmed.doctorName} is reviewing your symptoms, triage urgency, and schedule.
+                        You will receive an official notification and email once accepted. If the physician has an urgent schedule conflict, the system will seamlessly transfer your request to the next available specialist.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Patient Instructions:</strong> Please arrive <strong>15 minutes prior</strong> for clinical intake registration. A confirmation email has been logged to your email address ({bookingConfirmed.patientEmail}).
+                      </>
+                    )}
                   </div>
                 </div>
 

@@ -6,6 +6,7 @@
 import { Appointment, DoctorSlot, RebookingRequest } from '../types/index.ts';
 import { clinicStore } from './store.ts';
 import { sendAppointmentEmail } from './email.ts';
+import { PatientService } from './patientService.ts';
 
 export class CalendarService {
   // Check doctor availability
@@ -118,11 +119,31 @@ export class CalendarService {
       throw new Error(`Appointment not found with ID: ${appointmentId}`);
     }
 
+    // Concurrency protection: only currently assigned doctor can accept
+    if (apt.doctorId !== doctorId) {
+      throw new Error(`Unauthorized: This appointment is currently assigned to doctor ${apt.doctorId}, not ${doctorId}.`);
+    }
+
     // Update status to CONFIRMED
     apt.status = 'CONFIRMED';
     apt.doctorReviewedAt = new Date().toISOString();
     apt.doctorReviewNotes = notes || 'Approved by physician for clinical consultation.';
     apt.updatedAt = new Date().toISOString();
+
+    // Append to reassignmentHistory
+    if (!apt.reassignmentHistory) {
+      apt.reassignmentHistory = [];
+    }
+    apt.reassignmentHistory.push({
+      sequence: apt.reassignmentHistory.length + 1,
+      doctorId: apt.doctorId,
+      doctorName: apt.doctorName,
+      specialty: apt.doctorSpecialty,
+      decision: 'ACCEPTED',
+      reason: notes || 'Approved by doctor',
+      timestamp: new Date().toISOString(),
+    });
+
     clinicStore.saveAppointment(apt);
 
     // Now send the official booking confirmation email to the patient
@@ -138,14 +159,23 @@ export class CalendarService {
       console.error('[CalendarService] Failed to dispatch confirmation email after doctor approval:', err);
     }
 
+    // Dispatch in-app notification to patient dashboard
+    PatientService.addNotification(apt.patientEmail, apt.patientId, {
+      type: 'APPOINTMENT_REMINDER',
+      title: 'Appointment Confirmed by Doctor',
+      message: `${apt.doctorName} has accepted and confirmed your consultation for ${apt.date} at ${apt.time}. Notes: ${notes || 'Ready for clinical encounter.'}`,
+      priority: 'HIGH',
+      relatedId: apt.id,
+    });
+
     return { success: true, appointment: apt };
   }
 
-  // Doctor Rejects Appointment -> Releases slot, searches next eligible doctor, reassigns or sets EXHAUSTED
+  // Doctor Rejects Appointment -> Releases slot, searches next eligible doctor, reassigns or sets AWAITING_STAFF_INTERVENTION
   static async doctorRejectAppointment(
     appointmentId: string,
     doctorId: string,
-    reason?: string
+    reason: string
   ): Promise<{
     success: boolean;
     reassigned: boolean;
@@ -158,7 +188,18 @@ export class CalendarService {
       throw new Error(`Appointment not found with ID: ${appointmentId}`);
     }
 
-    const rejectingDoctor = clinicStore.getDoctorById(doctorId) || { name: apt.doctorName };
+    // Concurrency protection: only currently assigned doctor can reject
+    if (apt.doctorId !== doctorId) {
+      throw new Error(`Unauthorized: This appointment is currently assigned to doctor ${apt.doctorId}, not ${doctorId}.`);
+    }
+
+    // Validate rejection reason
+    const cleanReason = (reason || '').trim();
+    if (!cleanReason) {
+      throw new Error('A specific clinical or scheduling reason must be provided to decline an appointment request.');
+    }
+
+    const rejectingDoctor = clinicStore.getDoctorById(doctorId) || { name: apt.doctorName, specialty: apt.doctorSpecialty };
 
     // 1. Release currently locked slot
     const slots = clinicStore.getDoctorSlots(apt.doctorId, apt.date);
@@ -172,20 +213,40 @@ export class CalendarService {
     rejectedList.add(doctorId);
     apt.rejectedDoctorIds = Array.from(rejectedList);
 
-    // 3. Find next active verified doctor with the SAME specialty
-    const activeSpecialists = clinicStore
+    // 3. Record in reassignment history
+    if (!apt.reassignmentHistory) {
+      apt.reassignmentHistory = [];
+    }
+    apt.reassignmentHistory.push({
+      sequence: apt.reassignmentHistory.length + 1,
+      doctorId: doctorId,
+      doctorName: rejectingDoctor.name || apt.doctorName,
+      specialty: apt.doctorSpecialty,
+      decision: 'REJECTED',
+      reason: cleanReason,
+      timestamp: new Date().toISOString(),
+    });
+
+    // 4. Find next active verified doctor
+    // Primary: Same specialty doctors who have not rejected yet
+    const sameSpecialtyDoctors = clinicStore
       .getDoctors()
       .filter((d) => d.specialty === apt.doctorSpecialty && d.status === 'ACTIVE' && !rejectedList.has(d.id));
 
-    // Try each eligible specialist for an available slot
+    // Secondary: General Physician / Primary Care Doctors if specialty is exhausted
+    const fallbackDoctors = (apt.doctorSpecialty !== 'General Physician')
+      ? clinicStore.getDoctors().filter((d) => d.specialty === 'General Physician' && d.status === 'ACTIVE' && !rejectedList.has(d.id))
+      : [];
+
+    const eligibleCandidates = [...sameSpecialtyDoctors, ...fallbackDoctors];
+
+    // Try each eligible candidate for an available slot
     let reassignedSlot: DoctorSlot | null = null;
     let nextDoctor: any = null;
 
-    for (const doc of activeSpecialists) {
-      // Look for slots on the requested date first, then nearby dates
+    for (const doc of eligibleCandidates) {
       const candidateSlots = clinicStore.getDoctorSlots(doc.id).filter((s) => !s.isBooked && s.date >= apt.date);
       if (candidateSlots.length > 0) {
-        // Find best match slot (prefer same date or earliest next)
         const sameDateSlot = candidateSlots.find((s) => s.date === apt.date);
         const targetSlot = sameDateSlot || candidateSlots[0];
 
@@ -202,14 +263,35 @@ export class CalendarService {
       // Successfully found replacement doctor
       apt.doctorId = nextDoctor.id;
       apt.doctorName = nextDoctor.name;
+      apt.doctorSpecialty = nextDoctor.specialty;
       apt.date = reassignedSlot.date;
       apt.time = reassignedSlot.startTime;
       apt.status = 'PENDING_DOCTOR_APPROVAL';
       apt.reassignedFromDoctorId = doctorId;
-      apt.reassignedFromDoctorName = rejectingDoctor.name;
+      apt.reassignedFromDoctorName = rejectingDoctor.name || 'Prior Doctor';
       apt.cancellationReason = undefined;
       apt.updatedAt = new Date().toISOString();
+
+      apt.reassignmentHistory.push({
+        sequence: apt.reassignmentHistory.length + 1,
+        doctorId: nextDoctor.id,
+        doctorName: nextDoctor.name,
+        specialty: nextDoctor.specialty,
+        decision: 'AUTO_REASSIGNED',
+        reason: `Automatically reassigned from ${rejectingDoctor.name || 'doctor'}: "${cleanReason}"`,
+        timestamp: new Date().toISOString(),
+      });
+
       clinicStore.saveAppointment(apt);
+
+      // Notify patient of automatic reassignment
+      PatientService.addNotification(apt.patientEmail, apt.patientId, {
+        type: 'APPOINTMENT_REMINDER',
+        title: 'Appointment Reassigned for Clinical Review',
+        message: `Your appointment request has been rerouted to ${nextDoctor.name} (${nextDoctor.specialty}) for ${reassignedSlot.date} at ${reassignedSlot.startTime}. Pending their confirmation.`,
+        priority: 'NORMAL',
+        relatedId: apt.id,
+      });
 
       return {
         success: true,
@@ -220,17 +302,35 @@ export class CalendarService {
       };
     }
 
-    // 4. If no eligible doctors or slots remain, mark REASSIGNMENT_EXHAUSTED
-    apt.status = 'REASSIGNMENT_EXHAUSTED';
-    apt.cancellationReason = reason || 'All specialist physicians in this department were unavailable for the requested slot.';
+    // 5. If all eligible doctors or slots are exhausted, set status to AWAITING_STAFF_INTERVENTION
+    apt.status = 'AWAITING_STAFF_INTERVENTION';
+    apt.cancellationReason = cleanReason;
     apt.updatedAt = new Date().toISOString();
     clinicStore.saveAppointment(apt);
+
+    // Notify patient
+    PatientService.addNotification(apt.patientEmail, apt.patientId, {
+      type: 'RESCHEDULE_ALERT',
+      title: 'Action Needed: Appointment Escalated to Clinic Staff',
+      message: `Physicians in ${apt.doctorSpecialty} were unavailable at the requested time slot. Clinic staff has been alerted to manually coordinate your booking or offer alternative dates.`,
+      priority: 'HIGH',
+      relatedId: apt.id,
+    });
+
+    // Notify staff
+    PatientService.addNotification('staff@pulseclinic.internal', 'staff-dr-jenkins', {
+      type: 'CARE_TEAM_MESSAGE',
+      title: 'Appointment Reassignment Exhausted: Staff Action Needed',
+      message: `Booking #${apt.bookingId} for ${apt.patientName} exhausted automated doctor reassignment after rejection: "${cleanReason}". Staff intervention required.`,
+      priority: 'HIGH',
+      relatedId: apt.id,
+    });
 
     return {
       success: true,
       reassigned: false,
       appointment: apt,
-      message: 'All eligible physicians have been consulted. No open slots remain. Please select an alternate date or time.',
+      message: 'All eligible physicians have reviewed or were unavailable. This request has been escalated to Clinic Staff for manual slot scheduling.',
     };
   }
 

@@ -94,11 +94,10 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
 
   const isPending = doctor.status === 'PENDING_VERIFICATION';
 
-  // Filter appointments for this doctor (or demo cardiology if matched)
+  // Filter appointments strictly for this authenticated doctor
   const doctorAppointments = appointments.filter((a) => {
     if (a.doctorId === doctor.uid) return true;
-    if (doctor.displayName && a.doctorName.toLowerCase().includes(doctor.displayName.toLowerCase())) return true;
-    if (doctor.specialization === 'Cardiologist' && a.doctorSpecialty === 'Cardiologist') return true;
+    if (doctor.displayName && a.doctorName.toLowerCase() === doctor.displayName.toLowerCase()) return true;
     return false;
   });
 
@@ -579,6 +578,29 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
                           <span>{apt.patientPhone}</span>
                         </span>
                       </div>
+
+                      {/* Multi-Doctor Reassignment Chain History */}
+                      {apt.reassignmentHistory && apt.reassignmentHistory.length > 0 && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs space-y-1.5">
+                          <span className="font-bold text-[11px] text-purple-900 uppercase tracking-wider block">
+                            Reassignment Chain History ({apt.reassignmentHistory.length} events):
+                          </span>
+                          <div className="space-y-1">
+                            {apt.reassignmentHistory.map((entry, idx) => (
+                              <div key={idx} className="flex items-start space-x-2 text-[11px] text-purple-900">
+                                <span className="font-bold text-purple-700 shrink-0">Step {entry.sequence}:</span>
+                                <div>
+                                  <span className="font-semibold">{entry.doctorName}</span> ({entry.specialty}) –{' '}
+                                  <span className={`font-bold ${entry.decision === 'ACCEPTED' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                    {entry.decision}
+                                  </span>
+                                  {entry.reason && <span className="text-purple-700 italic"> — "{entry.reason}"</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action Buttons: Accept, Decline/Reassign, AI Handoff */}

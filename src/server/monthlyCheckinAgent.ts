@@ -241,6 +241,16 @@ You MUST respond in JSON format matching this schema:
       }
     } catch (err: any) {
       console.warn('[MonthlyCheckinAgent] Gemini API note:', err.message);
+      // Fallback regex extraction of vitals
+      const bpMatch = params.messageText.match(/(\d{2,3}\s*\/\s*\d{2,3})/);
+      if (bpMatch) {
+        session.extractedVitals.bloodPressure = `${bpMatch[1].replace(/\s+/g, '')} mmHg`;
+      }
+      const hrMatch = params.messageText.match(/(\d{2,3})\s*(?:bpm|pulse|heart rate)/i) || params.messageText.match(/(?:pulse|heart rate|bpm)\D{0,10}(\d{2,3})/i);
+      if (hrMatch) {
+        session.extractedVitals.heartRate = parseInt(hrMatch[1], 10);
+      }
+
       // Fallback response in appropriate language
       if (lang === 'te') {
         aiReply = `ధన్యవాదాలు ${session.patientName}. మీ రక్తపోటు మరియు జీవనశైలి సమాచారం నమోదు చేయబడింది. మీ నెలవారీ సమీక్ష విజయవంతంగా పూర్తయింది. మీ కేర్ టీమ్ సమీక్షిస్తుంది!`;
@@ -304,7 +314,15 @@ You MUST respond in JSON format matching this schema:
     };
 
     // Save into PatientService
-    await PatientService.submitMonthlyCheckIn(session.patientEmail, session.patientId, checkInRecord);
+    await PatientService.submitCheckIn(session.patientEmail, session.patientId, {
+      bloodPressure: checkInRecord.vitals.bloodPressure,
+      heartRate: checkInRecord.vitals.heartRate,
+      weightKg: checkInRecord.vitals.weightKg,
+      temperatureC: checkInRecord.vitals.temperatureC,
+      wellnessScore: checkInRecord.wellnessScore,
+      symptomsReported: checkInRecord.symptomsReported,
+      lifestyleNotes: checkInRecord.lifestyleNotes,
+    });
 
     return checkInRecord;
   }

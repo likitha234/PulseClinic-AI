@@ -11,6 +11,7 @@ import {
   DoctorSpecialty,
   Patient,
   TriageUrgency,
+  SupportedLanguage,
 } from '../types/index.ts';
 import { clinicStore } from './store.ts';
 import {
@@ -63,6 +64,7 @@ export async function callGeminiIntakeResponse(params: {
   prompt: string;
   conversationHistory?: { role: string; text: string }[];
   patientContext?: string;
+  language?: SupportedLanguage;
 }): Promise<{ text: string; model: string; error?: string }> {
   const ai = getGeminiClient();
   if (!ai) {
@@ -84,7 +86,15 @@ export async function callGeminiIntakeResponse(params: {
       '\n\n';
   }
 
-  const fullPrompt = `${params.patientContext ? `Patient Context:\n${params.patientContext}\n\n` : ''}${historyFormatted}Patient Message: "${params.prompt}"\n\nPlease provide a reassuring clinical intake response and ask ONE clear follow-up question. (Output only your direct reply to the patient):`;
+  const lang = params.language || 'en';
+  const languageInstruction =
+    lang === 'te'
+      ? 'CRITICAL MULTILINGUAL INSTRUCTION: You must respond entirely and fluently in Telugu (తెలుగు script). Acknowledge symptoms warmly and ask ONE simple follow-up question in Telugu.\n'
+      : lang === 'hi'
+      ? 'CRITICAL MULTILINGUAL INSTRUCTION: You must respond entirely and fluently in Hindi (हिन्दी / Devanagari script). Acknowledge symptoms warmly and ask ONE simple follow-up question in Hindi.\n'
+      : '';
+
+  const fullPrompt = `${languageInstruction}${params.patientContext ? `Patient Context:\n${params.patientContext}\n\n` : ''}${historyFormatted}Patient Message: "${params.prompt}"\n\nPlease provide a reassuring clinical intake response and ask ONE clear follow-up question. (Output only your direct reply to the patient in ${lang === 'te' ? 'Telugu' : lang === 'hi' ? 'Hindi' : 'English'}):`;
 
   // Candidate models: prioritize ultra-fast responsive model (gemini-3.5-flash-lite), then gemini-3.8-flash, then gemini-3.1-flash-lite
   const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
@@ -365,6 +375,7 @@ export class ClinicAgentWorkflow {
     message: string;
     conversationHistory?: { role: 'patient' | 'assistant'; text: string }[];
     currentIntake?: Partial<Patient>;
+    language?: SupportedLanguage;
   }): Promise<{
     reply: string;
     executionLog: AgentExecutionLog;
@@ -636,6 +647,7 @@ export class ClinicAgentWorkflow {
       prompt: params.message,
       conversationHistory: params.conversationHistory as any,
       patientContext,
+      language: params.language,
     });
 
     let finalReply = geminiResult.text;

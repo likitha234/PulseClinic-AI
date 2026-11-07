@@ -176,7 +176,7 @@ export class ReportComparisonService {
     const biomarkerMap = new Map<string, ReportBiomarkerComparison>();
 
     for (const report of reports) {
-      for (const metric of report.metrics) {
+      for (const metric of (report.metrics || [])) {
         const lowerName = metric.name.trim().toLowerCase();
         // Check if matches known standard
         let matchedKey = Object.keys(CLINICAL_BIOMARKER_STANDARDS).find(

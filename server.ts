@@ -26,6 +26,7 @@ import { PatientService } from './src/server/patientService.ts';
 import { DoctorHandoffService } from './src/server/doctorHandoffService.ts';
 import { MonthlyCheckinAgent } from './src/server/monthlyCheckinAgent.ts';
 import { ReportComparisonService } from './src/server/reportComparisonService.ts';
+import { getLiveFirestoreCollectionStats, verifyFirestoreConnection } from './src/server/firebase.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -323,7 +324,7 @@ async function startServer() {
         doctorId || 'doc-cardio-1',
         reason
       );
-      res.json({ success: true, ...result });
+      res.json(result);
     } catch (err: any) {
       console.error('[DoctorReject] Error rejecting appointment:', err);
       res.status(400).json({ success: false, error: err.message });
@@ -501,7 +502,7 @@ async function startServer() {
   // --- MULTI-STEP AGENTIC WORKFLOW ---
   app.post('/api/agent/chat', async (req: Request, res: Response) => {
     try {
-      const { sessionId, patientId, message, currentIntake, conversationHistory } = req.body;
+      const { sessionId, patientId, message, currentIntake, conversationHistory, language } = req.body;
       if (!message) {
         return res.status(400).json({ success: false, error: 'Message cannot be empty.' });
       }
@@ -512,6 +513,7 @@ async function startServer() {
         message,
         currentIntake,
         conversationHistory,
+        language,
       });
 
       res.json({ success: true, data: outcome });

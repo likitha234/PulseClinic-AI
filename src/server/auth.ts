@@ -71,60 +71,118 @@ function initializeDefaultAccounts() {
   };
   inMemoryUsers.set(staffUser.email.toLowerCase(), staffUser);
 
-  // 2. Default Patient Account (Eleanor Hughes)
-  const patientSalt = crypto.randomBytes(16).toString('hex');
-  const patientUser: StoredUserAccount = {
+  // 2. Default Patient Accounts
+  // 2a. Eleanor Hughes
+  const pat1Salt = crypto.randomBytes(16).toString('hex');
+  const pat1User: StoredUserAccount = {
     uid: 'pat-1001',
     email: 'eleanor.hughes@example.com',
     displayName: 'Eleanor Hughes',
     role: 'patient',
     phone: '+1 (555) 234-5678',
-    dateOfBirth: '1992-04-12',
+    dateOfBirth: '1974-06-15',
     gender: 'Female',
     status: 'ACTIVE',
     createdAt: new Date().toISOString(),
-    salt: patientSalt,
-    passwordHash: hashPassword('PatientPass123!', patientSalt),
+    salt: pat1Salt,
+    passwordHash: hashPassword('PatientPass123!', pat1Salt),
   };
-  inMemoryUsers.set(patientUser.email.toLowerCase(), patientUser);
+  inMemoryUsers.set(pat1User.email.toLowerCase(), pat1User);
 
-  // 3. Default Verified Doctor Account (Dr. Marcus Vance - Cardiologist)
-  const docSalt = crypto.randomBytes(16).toString('hex');
-  const doctorUser: StoredUserAccount = {
-    uid: 'doc-cardio-1',
-    email: 'dr.vance@pulseclinic.internal',
-    displayName: 'Dr. Marcus Vance',
-    role: 'doctor',
-    phone: '+1 (555) 432-8765',
-    specialization: 'Cardiologist',
-    qualification: 'MD, FACC, Johns Hopkins',
-    experience: '12 years',
-    licenseNumber: 'MD-CARDIO-8849',
+  // 2b. Liam Henderson
+  const pat2Salt = crypto.randomBytes(16).toString('hex');
+  const pat2User: StoredUserAccount = {
+    uid: 'pat-1002',
+    email: 'liam.henderson@example.com',
+    displayName: 'Liam Henderson',
+    role: 'patient',
+    phone: '+1 (555) 789-0123',
+    dateOfBirth: '1988-11-20',
+    gender: 'Male',
     status: 'ACTIVE',
     createdAt: new Date().toISOString(),
-    salt: docSalt,
-    passwordHash: hashPassword('DoctorPass123!', docSalt),
+    salt: pat2Salt,
+    passwordHash: hashPassword('PatientPass123!', pat2Salt),
   };
-  inMemoryUsers.set(doctorUser.email.toLowerCase(), doctorUser);
+  inMemoryUsers.set(pat2User.email.toLowerCase(), pat2User);
 
-  // 4. Default Pending Doctor Account (Awaiting Staff Verification)
-  const pendingDocSalt = crypto.randomBytes(16).toString('hex');
-  const pendingDocUser: StoredUserAccount = {
-    uid: 'doc-pending-101',
-    email: 'dr.alex.morgan@example.com',
-    displayName: 'Dr. Alex Morgan',
-    role: 'doctor',
-    phone: '+1 (555) 876-1234',
-    specialization: 'Neurologist',
-    qualification: 'MD, PhD Neuroscience, Stanford',
-    experience: '6 years',
-    licenseNumber: 'MD-NEURO-9921',
-    status: 'PENDING_VERIFICATION',
-    createdAt: new Date().toISOString(),
-    salt: pendingDocSalt,
-    passwordHash: hashPassword('DoctorPass123!', pendingDocSalt),
-  };
-  inMemoryUsers.set(pendingDocUser.email.toLowerCase(), pendingDocUser);
+  // 3. Six Verified Doctor Accounts
+  const doctorsToSeed = [
+    {
+      uid: 'doc-cardio-1',
+      email: 'dr.marcus.vance@pulseclinic.internal',
+      displayName: 'Dr. Marcus Vance',
+      specialization: 'Cardiology',
+      qualification: 'MD, FACC, Johns Hopkins',
+      experience: '14 years',
+      licenseNumber: 'MD-CARDIO-8849',
+    },
+    {
+      uid: 'doc-derm-1',
+      email: 'dr.sarah.mitchell@pulseclinic.internal',
+      displayName: 'Dr. Sarah Mitchell',
+      specialization: 'Dermatology',
+      qualification: 'MD, FAAD, Stanford Medicine',
+      experience: '11 years',
+      licenseNumber: 'MD-DERM-4102',
+    },
+    {
+      uid: 'doc-gp-1',
+      email: 'dr.james.wilson@pulseclinic.internal',
+      displayName: 'Dr. James Wilson',
+      specialization: 'General Medicine',
+      qualification: 'MD, ABFM, Harvard Medical School',
+      experience: '15 years',
+      licenseNumber: 'MD-GEN-5510',
+    },
+    {
+      uid: 'doc-peds-1',
+      email: 'dr.emily.carter@pulseclinic.internal',
+      displayName: 'Dr. Emily Carter',
+      specialization: 'Pediatrics',
+      qualification: 'MD, FAAP, UCSF School of Medicine',
+      experience: '9 years',
+      licenseNumber: 'MD-PEDS-7301',
+    },
+    {
+      uid: 'doc-ortho-1',
+      email: 'dr.robert.anderson@pulseclinic.internal',
+      displayName: 'Dr. Robert Anderson',
+      specialization: 'Orthopedics',
+      qualification: 'MD, FAAOS, Columbia University',
+      experience: '16 years',
+      licenseNumber: 'MD-ORTHO-6294',
+    },
+    {
+      uid: 'doc-neuro-1',
+      email: 'dr.sophia.martinez@pulseclinic.internal',
+      displayName: 'Dr. Sophia Martinez',
+      specialization: 'Neurology',
+      qualification: 'MD, PhD, Mayo Clinic',
+      experience: '12 years',
+      licenseNumber: 'MD-NEURO-9921',
+    },
+  ];
+
+  for (const doc of doctorsToSeed) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const docAccount: StoredUserAccount = {
+      uid: doc.uid,
+      email: doc.email,
+      displayName: doc.displayName,
+      role: 'doctor',
+      phone: '+1 (555) 432-8765',
+      specialization: doc.specialization,
+      qualification: doc.qualification,
+      experience: doc.experience,
+      licenseNumber: doc.licenseNumber,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      salt,
+      passwordHash: hashPassword('DoctorPass123!', salt),
+    };
+    inMemoryUsers.set(doc.email.toLowerCase(), docAccount);
+  }
 }
 
 // Run seed on boot

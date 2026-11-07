@@ -91,22 +91,42 @@ export const AuthView: React.FC<AuthViewProps> = ({
   }, []);
 
   // Quick fill demo credentials
-  const handleQuickFill = (role: 'patient' | 'doctor' | 'pending-doctor' | 'staff') => {
+  const handleQuickFill = (target: string) => {
     setErrorMessage('');
     setSuccessMessage('');
-    if (role === 'patient') {
+    if (target === 'patient-eleanor') {
       setMode('patient-login');
       setLoginEmail('eleanor.hughes@example.com');
       setLoginPassword('PatientPass123!');
-    } else if (role === 'doctor') {
+    } else if (target === 'patient-liam') {
+      setMode('patient-login');
+      setLoginEmail('liam.henderson@example.com');
+      setLoginPassword('PatientPass123!');
+    } else if (target === 'doc-vance') {
       setMode('doctor-login');
-      setLoginEmail('dr.vance@pulseclinic.internal');
+      setLoginEmail('dr.marcus.vance@pulseclinic.internal');
       setLoginPassword('DoctorPass123!');
-    } else if (role === 'pending-doctor') {
+    } else if (target === 'doc-mitchell') {
       setMode('doctor-login');
-      setLoginEmail('dr.alex.morgan@example.com');
+      setLoginEmail('dr.sarah.mitchell@pulseclinic.internal');
       setLoginPassword('DoctorPass123!');
-    } else if (role === 'staff') {
+    } else if (target === 'doc-wilson') {
+      setMode('doctor-login');
+      setLoginEmail('dr.james.wilson@pulseclinic.internal');
+      setLoginPassword('DoctorPass123!');
+    } else if (target === 'doc-carter') {
+      setMode('doctor-login');
+      setLoginEmail('dr.emily.carter@pulseclinic.internal');
+      setLoginPassword('DoctorPass123!');
+    } else if (target === 'doc-anderson') {
+      setMode('doctor-login');
+      setLoginEmail('dr.robert.anderson@pulseclinic.internal');
+      setLoginPassword('DoctorPass123!');
+    } else if (target === 'doc-martinez') {
+      setMode('doctor-login');
+      setLoginEmail('dr.sophia.martinez@pulseclinic.internal');
+      setLoginPassword('DoctorPass123!');
+    } else if (target === 'staff') {
       setMode('staff-login');
       setLoginEmail('staff@pulseclinic.internal');
       setLoginPassword('PulseCare2026!');
@@ -760,6 +780,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </form>
 
           {/* Quick Demo Credentials */}
+          <div className="border-t border-slate-200 pt-4 space-y-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
                 <Sparkles className="w-3 h-3 text-teal-600" />
@@ -773,41 +794,93 @@ export const AuthView: React.FC<AuthViewProps> = ({
               <span className="text-[10px] text-slate-400">Pre-seeded authentication</span>
             </div>
 
-            {/* Strictly Separated Demo Logins: Patient shows ONLY Eleanor; Doctor shows ONLY Doctors */}
+            {/* Strictly Separated Demo Logins: Patient shows Eleanor & Liam; Doctor shows all 6 doctors */}
             {mode.startsWith('patient') && (
-              <button
-                type="button"
-                onClick={() => handleQuickFill('patient')}
-                className="w-full p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <span className="font-bold text-slate-900 block text-xs">Eleanor Hughes</span>
-                  <span className="text-[11px] text-teal-700">Patient (Returning Account) • Hypertension</span>
-                </div>
-                <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2.5 py-1 rounded-lg">
-                  Instant Demo Sign-In
-                </span>
-              </button>
-            )}
-
-            {mode.startsWith('doctor') && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('doctor')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  onClick={() => handleQuickFill('patient-eleanor')}
+                  className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex flex-col justify-between"
                 >
-                  <span className="font-bold text-slate-900 block text-xs">Dr. Marcus Vance</span>
-                  <span className="text-teal-700 block mt-0.5">Cardiologist (Verified Physician)</span>
+                  <div>
+                    <span className="font-bold text-slate-900 block text-xs">Eleanor Hughes</span>
+                    <span className="text-[11px] text-teal-700">Patient • Hypertension</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md mt-1.5 inline-block w-fit">
+                    Demo Sign-In
+                  </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('pending-doctor')}
-                  className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-white hover:border-amber-400 text-left transition-colors"
+                  onClick={() => handleQuickFill('patient-liam')}
+                  className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex flex-col justify-between"
                 >
-                  <span className="font-bold text-amber-900 block text-xs">Dr. Alex Morgan</span>
-                  <span className="text-amber-700 block mt-0.5">Neurologist (Pending Review)</span>
+                  <div>
+                    <span className="font-bold text-slate-900 block text-xs">Liam Henderson</span>
+                    <span className="text-[11px] text-teal-700">Patient • Mild Asthma</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md mt-1.5 inline-block w-fit">
+                    Demo Sign-In
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {mode.startsWith('doctor') && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('doc-vance')}
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block text-xs">Dr. Marcus Vance</span>
+                  <span className="text-cyan-700 block mt-0.5 font-medium">Cardiology</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('doc-mitchell')}
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block text-xs">Dr. Sarah Mitchell</span>
+                  <span className="text-cyan-700 block mt-0.5 font-medium">Dermatology</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('doc-wilson')}
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block text-xs">Dr. James Wilson</span>
+                  <span className="text-cyan-700 block mt-0.5 font-medium">General Medicine</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('doc-carter')}
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block text-xs">Dr. Emily Carter</span>
+                  <span className="text-cyan-700 block mt-0.5 font-medium">Pediatrics</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('doc-anderson')}
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block text-xs">Dr. Robert Anderson</span>
+                  <span className="text-cyan-700 block mt-0.5 font-medium">Orthopedics</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('doc-martinez')}
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block text-xs">Dr. Sophia Martinez</span>
+                  <span className="text-cyan-700 block mt-0.5 font-medium">Neurology</span>
                 </button>
               </div>
             )}
@@ -829,14 +902,24 @@ export const AuthView: React.FC<AuthViewProps> = ({
             )}
 
             {mode === 'forgot-password' && (
-              <button
-                type="button"
-                onClick={() => handleQuickFill('patient')}
-                className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white text-left transition-colors"
-              >
-                <span className="font-bold text-slate-900 block text-xs">Eleanor Hughes</span>
-                <span className="text-slate-500 text-[11px]">eleanor.hughes@example.com</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('patient-eleanor')}
+                  className="flex-1 p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white text-left text-xs transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block">Eleanor Hughes</span>
+                  <span className="text-slate-500 text-[10px]">eleanor.hughes@example.com</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('patient-liam')}
+                  className="flex-1 p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white text-left text-xs transition-colors"
+                >
+                  <span className="font-bold text-slate-900 block">Liam Henderson</span>
+                  <span className="text-slate-500 text-[10px]">liam.henderson@example.com</span>
+                </button>
+              </div>
             )}
           </div>
 

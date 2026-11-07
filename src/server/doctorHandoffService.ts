@@ -61,7 +61,7 @@ CLINICAL ENCOUNTER INFORMATION:
 - Appointment Date & Time: ${apt.date} at ${apt.time}
 - Chief Complaint: ${apt.chiefComplaint}
 - AI Triage Urgency Level: ${apt.urgency}
-- Triage Symptoms Detected: ${triage?.symptomsIdentified?.join(', ') || apt.chiefComplaint}
+- Triage Symptoms Detected: ${triage?.symptoms?.join(', ') || apt.chiefComplaint}
 - Triage Rationale: ${triage?.clinicalRationale || 'Patient presented with active symptoms requiring clinical assessment.'}
 
 PATIENT MEDICAL HISTORY:
@@ -71,7 +71,7 @@ PATIENT MEDICAL HISTORY:
 - Surgical History: ${surgeries.join(', ') || 'None reported'}
 
 RECENT DIAGNOSTIC LABS:
-${recentReports.map((r) => `- [${r.date}] ${r.title}: ${r.summary} (${r.metrics.map((m) => `${m.name}: ${m.value} [${m.status}]`).join(', ')})`).join('\n') || 'None on file.'}
+${recentReports.map((r) => `- [${r.date}] ${r.title}: ${r.summary} (${(r.metrics || []).map((m) => `${m.name}: ${m.value} [${m.status}]`).join(', ')})`).join('\n') || 'None on file.'}
 
 RECENT MONTHLY CHECK-IN (PATIENT SELF-REPORT):
 ${latestCheckIn ? `- Date: ${latestCheckIn.checkInDate}, Wellness Score: ${latestCheckIn.wellnessScore}/10, BP: ${latestCheckIn.vitals.bloodPressure || 'N/A'}, HR: ${latestCheckIn.vitals.heartRate || 'N/A'} bpm, AI Note: ${latestCheckIn.aiAssessment || 'Stable'}` : 'No recent check-in.'}
@@ -144,7 +144,7 @@ CRITICAL CLINICAL SAFETY RULES:
       triageAssessment: {
         chiefComplaint: apt.chiefComplaint,
         urgency: apt.urgency,
-        symptomsIdentified: triage?.symptomsIdentified || [apt.chiefComplaint],
+        symptomsIdentified: triage?.symptoms || [apt.chiefComplaint],
         suggestedSpecialty: apt.doctorSpecialty,
         triageReasoning: triage?.clinicalRationale || 'Intake completed with patient; scheduled for comprehensive physical and clinical evaluation.',
       },
@@ -159,7 +159,7 @@ CRITICAL CLINICAL SAFETY RULES:
         date: r.date,
         title: r.title,
         keyFindings: [r.summary],
-        abnormalBiomarkers: r.metrics.filter((m) => m.status === 'HIGH' || m.status === 'LOW').map((m) => `${m.name}: ${m.value} (${m.status})`),
+        abnormalBiomarkers: (r.metrics || []).filter((m) => m.status === 'HIGH' || m.status === 'LOW' || m.status === 'CRITICAL').map((m) => `${m.name}: ${m.value} (${m.status})`),
       })),
       recentCheckInSummary: latestCheckIn
         ? {

@@ -185,7 +185,7 @@ export class PatientService {
     // Check clinicStore first
     const memoryPatients = clinicStore.getPatients();
     patientRecord = memoryPatients.find(
-      (p) => p.email.toLowerCase() === normalizedEmail || p.id === patientUid
+      (p) => (p.email ? p.email.toLowerCase() === normalizedEmail : false) || p.id === patientUid
     );
 
     if (patientRecord && (!patientRecord.fullName || patientRecord.fullName === 'Patient' || patientRecord.fullName === 'Valued Patient')) {
@@ -280,7 +280,7 @@ export class PatientService {
     const allAppointments = clinicStore.getAppointments();
     const patientAppointments = allAppointments.filter(
       (a) =>
-        a.patientEmail.toLowerCase() === normalizedEmail ||
+        (a.patientEmail ? a.patientEmail.toLowerCase() === normalizedEmail : false) ||
         a.patientId === patientId ||
         a.patientId === patientUid
     );
@@ -411,7 +411,7 @@ export class PatientService {
     // 6. Fetch Patient Notifications
     const notifications = Array.from(patientStore.notifications.values()).filter(
       (n) =>
-        n.recipientEmail.toLowerCase() === normalizedEmail ||
+        (n.recipientEmail ? n.recipientEmail.toLowerCase() === normalizedEmail : false) ||
         n.patientId === patientId ||
         n.patientId === patientUid
     );
@@ -582,7 +582,7 @@ export class PatientService {
 
     // Update in clinicStore
     const patient = clinicStore.getPatients().find(
-      (p) => p.email.toLowerCase() === normalizedEmail || p.id === patientUid
+      (p) => (p.email ? p.email.toLowerCase() === normalizedEmail : false) || p.id === patientUid
     );
 
     if (patient) {
@@ -647,9 +647,9 @@ export class PatientService {
       date: report.date,
       type: 'LAB_REPORT',
       title: report.title,
-      description: `${report.summary} (${report.metrics.length} biomarkers evaluated)`,
-      badgeText: report.status === 'HIGH' ? 'Elevated Biomarkers' : 'Normal Results',
-      urgency: report.status === 'HIGH' ? 'ORANGE' : 'GREEN',
+      description: `${report.summary} (${(report.metrics || []).length} biomarkers evaluated)`,
+      badgeText: report.status === 'ATTENTION_NEEDED' || (report.status as any) === 'HIGH' ? 'Elevated Biomarkers' : 'Normal Results',
+      urgency: report.status === 'ATTENTION_NEEDED' || (report.status as any) === 'HIGH' ? 'ORANGE' : 'GREEN',
       doctorName: report.doctorName,
     };
 
@@ -669,7 +669,31 @@ export class PatientService {
   /**
    * Push notification to patient
    */
-  static addNotification(notification: PatientNotification): PatientNotification {
+  static addNotification(
+    param1: string | PatientNotification,
+    param2?: string,
+    param3?: Partial<PatientNotification>
+  ): PatientNotification {
+    let notification: PatientNotification;
+    if (typeof param1 === 'object') {
+      notification = param1;
+    } else {
+      const email = param1;
+      const patientId = param2 || '';
+      const payload = param3 || {};
+      notification = {
+        id: payload.id || `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        patientId,
+        recipientEmail: email,
+        type: payload.type || 'APPOINTMENT_REMINDER',
+        title: payload.title || 'Notification',
+        message: payload.message || '',
+        timestamp: payload.timestamp || new Date().toISOString(),
+        read: payload.read || false,
+        priority: payload.priority || 'NORMAL',
+        relatedId: payload.relatedId,
+      };
+    }
     patientStore.notifications.set(notification.id, notification);
     return notification;
   }
