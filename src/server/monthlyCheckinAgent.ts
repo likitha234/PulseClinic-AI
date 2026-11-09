@@ -5,12 +5,19 @@
  * draft session resumption, and auto-scheduling next check-in +30 days.
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { clinicStore } from './store.ts';
 import { PatientService } from './patientService.ts';
 import { SupportedLanguage, MonthlyCheckIn, CheckInChatMessage } from '../types/index.ts';
 
-const ai = new GoogleGenAI();
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    },
+  },
+});
 
 export interface CheckInSession {
   sessionId: string;
@@ -218,7 +225,7 @@ You MUST respond in JSON format matching this schema:
         contents: `${systemPrompt}\n\nCONVERSATION SO FAR:\n${promptHistory}\n\nPATIENT LAST INPUT:\n${params.messageText}`,
         config: {
           responseMimeType: 'application/json',
-          temperature: 0.3,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         },
       });
 

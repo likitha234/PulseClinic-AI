@@ -33,17 +33,26 @@ interface AuthViewProps {
   initialMode?: AuthMode;
   onSuccess: (user: any, token: string) => void;
   onCancel?: () => void;
+  onModeChange?: (mode: AuthMode) => void;
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({
   initialMode = 'patient-login',
   onSuccess,
   onCancel,
+  onModeChange,
 }) => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  const switchMode = (newMode: AuthMode) => {
+    setMode(newMode);
+    setErrorMessage('');
+    setSuccessMessage('');
+    onModeChange?.(newMode);
+  };
 
   // Firebase Config Status from Server
   const [firebaseStatus, setFirebaseStatus] = useState<{
@@ -79,6 +88,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
   // Forgot Password Fields
   const [forgotEmail, setForgotEmail] = useState('');
+
+  // Sync internal mode with initialMode prop changes (e.g. when clicking Doctor Login or Staff Login in header)
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+      setErrorMessage('');
+      setSuccessMessage('');
+    }
+  }, [initialMode]);
 
   // Fetch Firebase config status on mount
   useEffect(() => {
@@ -254,73 +272,81 @@ export const AuthView: React.FC<AuthViewProps> = ({
   };
 
   return (
-    <div className="min-h-[calc(100vh-140px)] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-140px)] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-xl w-full mx-auto space-y-6">
-        {/* Navigation Selector: Patient / Doctor / Staff */}
-        <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs flex">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('patient-login');
-              setErrorMessage('');
-              setSuccessMessage('');
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
-              mode.startsWith('patient')
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Patient Portal</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setMode('doctor-login');
-              setErrorMessage('');
-              setSuccessMessage('');
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
-              mode.startsWith('doctor')
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Stethoscope className="w-3.5 h-3.5" />
-            <span>Doctor Portal</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setMode('staff-login');
-              setErrorMessage('');
-              setSuccessMessage('');
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
-              mode === 'staff-login'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            <span>Staff Login</span>
-          </button>
+        {/* PulseClinic AI Branding Banner & Two Lines Description */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-semibold">
+            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+            <span>AI-Powered Clinical Healthcare</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            PulseClinic <span className="text-teal-600">AI</span>
+          </h1>
+          <p className="text-sm text-slate-600 leading-relaxed font-medium max-w-lg mx-auto">
+            Intelligent clinical symptom intake and emergency red-flag triage powered by conversational AI.
+          </p>
+          <p className="text-xs text-slate-500 leading-relaxed max-w-lg mx-auto">
+            Autonomous doctor matching and real-time scheduling with physician review and multi-doctor reassignment.
+          </p>
         </div>
 
         {/* Main Card */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-md p-8 sm:p-10 space-y-6">
+          {/* Persona Portal Switcher: Patient, Doctor, Staff */}
+          <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => switchMode('patient-login')}
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                mode.startsWith('patient')
+                  ? 'bg-white text-teal-800 shadow-xs border border-teal-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+              title="Switch to Patient Portal"
+            >
+              <User className="w-3.5 h-3.5 text-teal-600" />
+              <span>Patient Portal</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchMode('doctor-login')}
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                mode.startsWith('doctor')
+                  ? 'bg-white text-cyan-800 shadow-xs border border-cyan-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+              title="Switch to Doctor Portal"
+            >
+              <Stethoscope className="w-3.5 h-3.5 text-cyan-600" />
+              <span>Doctor Portal</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchMode('staff-login')}
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                mode === 'staff-login'
+                  ? 'bg-white text-purple-800 shadow-xs border border-purple-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+              title="Switch to Staff Portal"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-purple-600" />
+              <span>Staff Login</span>
+            </button>
+          </div>
+
           {/* Header Title */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 border border-teal-100 mb-1">
               {mode.startsWith('patient') ? (
                 <User className="w-6 h-6" />
               ) : mode.startsWith('doctor') ? (
-                <Stethoscope className="w-6 h-6" />
+                <Stethoscope className="w-6 h-6 text-cyan-600" />
               ) : (
-                <ShieldAlert className="w-6 h-6" />
+                <ShieldAlert className="w-6 h-6 text-purple-600" />
               )}
             </div>
 
@@ -334,7 +360,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </h2>
 
             <p className="text-xs text-slate-500 font-medium">
-              {mode.startsWith('patient') && 'Access your symptoms triage history, intake consultations and bookings.'}
+              {mode.startsWith('patient') && 'Sign in to access your symptom intake, appointment schedule, and medical records.'}
               {mode.startsWith('doctor') && 'Inspect assigned clinic schedules, patient encounters and clinical notes.'}
               {mode === 'staff-login' && 'Lead clinicians and administrative staff command center.'}
               {mode === 'forgot-password' && 'Enter your verified email to receive secure recovery instructions.'}
@@ -346,8 +372,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <div className="flex border-b border-slate-100 text-xs font-semibold">
               <button
                 type="button"
-                onClick={() => setMode('patient-login')}
-                className={`flex-1 pb-3 text-center border-b-2 transition-colors ${
+                onClick={() => switchMode('patient-login')}
+                className={`flex-1 pb-3 text-center border-b-2 transition-colors cursor-pointer ${
                   mode === 'patient-login'
                     ? 'border-teal-600 text-teal-600 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-700'
@@ -357,8 +383,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setMode('patient-register')}
-                className={`flex-1 pb-3 text-center border-b-2 transition-colors ${
+                onClick={() => switchMode('patient-register')}
+                className={`flex-1 pb-3 text-center border-b-2 transition-colors cursor-pointer ${
                   mode === 'patient-register'
                     ? 'border-teal-600 text-teal-600 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-700'
@@ -373,10 +399,10 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <div className="flex border-b border-slate-100 text-xs font-semibold">
               <button
                 type="button"
-                onClick={() => setMode('doctor-login')}
-                className={`flex-1 pb-3 text-center border-b-2 transition-colors ${
+                onClick={() => switchMode('doctor-login')}
+                className={`flex-1 pb-3 text-center border-b-2 transition-colors cursor-pointer ${
                   mode === 'doctor-login'
-                    ? 'border-teal-600 text-teal-600 font-bold'
+                    ? 'border-cyan-600 text-cyan-600 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-700'
                 }`}
               >
@@ -384,10 +410,10 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setMode('doctor-register')}
-                className={`flex-1 pb-3 text-center border-b-2 transition-colors ${
+                onClick={() => switchMode('doctor-register')}
+                className={`flex-1 pb-3 text-center border-b-2 transition-colors cursor-pointer ${
                   mode === 'doctor-register'
-                    ? 'border-teal-600 text-teal-600 font-bold'
+                    ? 'border-cyan-600 text-cyan-600 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-700'
                 }`}
               >
@@ -800,7 +826,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('patient-eleanor')}
-                  className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex flex-col justify-between"
+                  className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <div>
                     <span className="font-bold text-slate-900 block text-xs">Eleanor Hughes</span>
@@ -814,7 +840,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('patient-liam')}
-                  className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex flex-col justify-between"
+                  className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-white hover:border-teal-400 text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <div>
                     <span className="font-bold text-slate-900 block text-xs">Liam Henderson</span>
@@ -832,7 +858,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('doc-vance')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-slate-900 block text-xs">Dr. Marcus Vance</span>
                   <span className="text-cyan-700 block mt-0.5 font-medium">Cardiology</span>
@@ -841,7 +867,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('doc-mitchell')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-slate-900 block text-xs">Dr. Sarah Mitchell</span>
                   <span className="text-cyan-700 block mt-0.5 font-medium">Dermatology</span>
@@ -850,7 +876,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('doc-wilson')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-slate-900 block text-xs">Dr. James Wilson</span>
                   <span className="text-cyan-700 block mt-0.5 font-medium">General Medicine</span>
@@ -859,7 +885,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('doc-carter')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-slate-900 block text-xs">Dr. Emily Carter</span>
                   <span className="text-cyan-700 block mt-0.5 font-medium">Pediatrics</span>
@@ -868,7 +894,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('doc-anderson')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-slate-900 block text-xs">Dr. Robert Anderson</span>
                   <span className="text-cyan-700 block mt-0.5 font-medium">Orthopedics</span>
@@ -877,7 +903,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleQuickFill('doc-martinez')}
-                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors"
+                  className="p-2.5 rounded-xl border border-cyan-200 bg-cyan-50/70 hover:bg-white hover:border-cyan-400 text-left transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-slate-900 block text-xs">Dr. Sophia Martinez</span>
                   <span className="text-cyan-700 block mt-0.5 font-medium">Neurology</span>
@@ -889,7 +915,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleQuickFill('staff')}
-                className="w-full p-2.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-white hover:border-purple-400 text-left transition-colors flex items-center justify-between"
+                className="w-full p-2.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-white hover:border-purple-400 text-left transition-colors flex items-center justify-between cursor-pointer"
               >
                 <div>
                   <span className="font-bold text-slate-900 block text-xs">Dr. Sarah Jenkins</span>
@@ -920,6 +946,88 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   <span className="text-slate-500 text-[10px]">liam.henderson@example.com</span>
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* Quick Role Switcher Footer Links */}
+          <div className="pt-2 pb-1 text-center text-xs text-slate-500 border-t border-slate-100 flex items-center justify-center space-x-2">
+            {mode.startsWith('patient') && (
+              <>
+                <span>Switch portal:</span>
+                <button
+                  type="button"
+                  onClick={() => switchMode('doctor-login')}
+                  className="font-bold text-cyan-700 hover:text-cyan-900 hover:underline cursor-pointer inline-flex items-center space-x-1"
+                >
+                  <Stethoscope className="w-3 h-3" />
+                  <span>Doctor Portal</span>
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => switchMode('staff-login')}
+                  className="font-bold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer inline-flex items-center space-x-1"
+                >
+                  <ShieldAlert className="w-3 h-3" />
+                  <span>Staff Login</span>
+                </button>
+              </>
+            )}
+
+            {mode.startsWith('doctor') && (
+              <>
+                <span>Switch portal:</span>
+                <button
+                  type="button"
+                  onClick={() => switchMode('patient-login')}
+                  className="font-bold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer inline-flex items-center space-x-1"
+                >
+                  <User className="w-3 h-3" />
+                  <span>Patient Portal</span>
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => switchMode('staff-login')}
+                  className="font-bold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer inline-flex items-center space-x-1"
+                >
+                  <ShieldAlert className="w-3 h-3" />
+                  <span>Staff Login</span>
+                </button>
+              </>
+            )}
+
+            {mode === 'staff-login' && (
+              <>
+                <span>Switch portal:</span>
+                <button
+                  type="button"
+                  onClick={() => switchMode('patient-login')}
+                  className="font-bold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer inline-flex items-center space-x-1"
+                >
+                  <User className="w-3 h-3" />
+                  <span>Patient Portal</span>
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => switchMode('doctor-login')}
+                  className="font-bold text-cyan-700 hover:text-cyan-900 hover:underline cursor-pointer inline-flex items-center space-x-1"
+                >
+                  <Stethoscope className="w-3 h-3" />
+                  <span>Doctor Portal</span>
+                </button>
+              </>
+            )}
+
+            {mode === 'forgot-password' && (
+              <button
+                type="button"
+                onClick={() => switchMode('patient-login')}
+                className="font-bold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer"
+              >
+                ← Return to Sign In
+              </button>
             )}
           </div>
 

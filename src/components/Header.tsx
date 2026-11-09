@@ -36,6 +36,7 @@ interface HeaderProps {
   } | null;
   onLogout: () => void;
   onOpenAuth: (initialMode?: string) => void;
+  authMode?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout,
   onOpenAuth,
+  authMode = 'patient-login',
 }) => {
   const userName = currentUser?.displayName || currentUser?.name || 'Guest User';
   const userRole = currentUser?.role;
@@ -55,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleBrandClick = () => {
     if (!currentUser) {
-      setActiveTab('landing');
+      onOpenAuth('patient-login');
     } else if (isDoctor) {
       setActiveTab('doctor');
     } else if (isStaff) {
@@ -299,11 +301,20 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </div>
             ) : (
-              /* When unauthenticated: 3 clearly separated persona login options */
-              <div className="flex items-center space-x-1.5 sm:space-x-2">
+              /* When unauthenticated: 3 clearly separated persona login options with active states */
+              <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
                 <button
-                  onClick={() => onOpenAuth('patient-login')}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold transition-colors flex items-center space-x-1"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenAuth('patient-login');
+                  }}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer shadow-xs ${
+                    activeTab === 'auth' && authMode.startsWith('patient')
+                      ? 'border-teal-500 bg-teal-600 text-white ring-2 ring-teal-300 ring-offset-1'
+                      : 'border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800'
+                  }`}
                   title="Patient Portal Sign In"
                 >
                   <User className="w-3.5 h-3.5" />
@@ -311,8 +322,17 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onOpenAuth('doctor-login')}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 text-xs font-bold transition-colors flex items-center space-x-1"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenAuth('doctor-login');
+                  }}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer shadow-xs ${
+                    activeTab === 'auth' && authMode.startsWith('doctor')
+                      ? 'border-cyan-500 bg-cyan-600 text-white ring-2 ring-cyan-300 ring-offset-1'
+                      : 'border-cyan-200 bg-cyan-50 hover:bg-cyan-100 text-cyan-800'
+                  }`}
                   title="Doctor Portal Sign In"
                 >
                   <Stethoscope className="w-3.5 h-3.5" />
@@ -320,8 +340,17 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onOpenAuth('staff-login')}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition-colors flex items-center space-x-1"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenAuth('staff-login');
+                  }}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer shadow-xs ${
+                    activeTab === 'auth' && authMode === 'staff-login'
+                      ? 'border-purple-500 bg-purple-600 text-white ring-2 ring-purple-300 ring-offset-1'
+                      : 'border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800'
+                  }`}
                   title="Staff Portal Sign In"
                 >
                   <Shield className="w-3.5 h-3.5" />

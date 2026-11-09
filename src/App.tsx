@@ -30,8 +30,8 @@ import {
 import { Lock, ShieldAlert, Stethoscope, ArrowRight, UserCheck, KeyRound } from 'lucide-react';
 
 export default function App() {
-  // Initial active view starts on 'landing' so user sees the 3 distinct persona choices
-  const [activeTab, setActiveTab] = useState<AppTab>('landing');
+  // Primary first page is the Patient Sign In portal
+  const [activeTab, setActiveTab] = useState<AppTab>('auth');
   const [authInitialMode, setAuthInitialMode] = useState<AuthMode>('patient-login');
   const [patientViewMode, setPatientViewMode] = useState<'dashboard' | 'intake'>('dashboard');
 
@@ -151,17 +151,20 @@ export default function App() {
           } else {
             localStorage.removeItem('pulseclinic_auth_token');
             setCurrentUser(null);
-            setActiveTab('landing');
+            setAuthInitialMode('patient-login');
+            setActiveTab('auth');
           }
         })
         .catch(() => {
           localStorage.removeItem('pulseclinic_auth_token');
           setCurrentUser(null);
-          setActiveTab('landing');
+          setAuthInitialMode('patient-login');
+          setActiveTab('auth');
         });
     } else {
-      // First page is role selection landing page
-      setActiveTab('landing');
+      // First page is the Patient Portal Sign In
+      setAuthInitialMode('patient-login');
+      setActiveTab('auth');
     }
   }, []);
 
@@ -230,7 +233,8 @@ export default function App() {
       setCurrentPatient(null);
       setSessionToken(null);
       localStorage.removeItem('pulseclinic_auth_token');
-      setActiveTab('landing');
+      setAuthInitialMode('patient-login');
+      setActiveTab('auth');
     }
   };
 
@@ -244,7 +248,7 @@ export default function App() {
     let email = 'eleanor.hughes@example.com';
     let password = 'PatientPass123!';
     if (role === 'doctor') {
-      email = 'dr.vance@pulseclinic.internal';
+      email = 'dr.marcus.vance@pulseclinic.internal';
       password = 'DoctorPass123!';
     } else if (role === 'staff') {
       email = 'staff@pulseclinic.internal';
@@ -282,6 +286,7 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenAuth={handleOpenAuth}
+        authMode={authInitialMode}
       />
 
       <main className="flex-1 pb-16">
@@ -296,12 +301,17 @@ export default function App() {
           />
         )}
 
-        {/* AUTHENTICATION VIEW (Patient, Doctor & Staff Login / Register) */}
+        {/* AUTHENTICATION VIEW (Patient Portal Sign In & Registration as Primary First Page) */}
         {activeTab === 'auth' && (
           <AuthView
+            key={authInitialMode}
             initialMode={authInitialMode}
+            onModeChange={(newMode) => setAuthInitialMode(newMode)}
             onSuccess={handleAuthSuccess}
-            onCancel={() => setActiveTab('landing')}
+            onCancel={() => {
+              setAuthInitialMode('patient-login');
+              setActiveTab('auth');
+            }}
           />
         )}
 
@@ -312,7 +322,10 @@ export default function App() {
               <AuthView
                 initialMode="patient-login"
                 onSuccess={handleAuthSuccess}
-                onCancel={() => setActiveTab('landing')}
+                onCancel={() => {
+                  setAuthInitialMode('patient-login');
+                  setActiveTab('auth');
+                }}
               />
             ) : !isPatient ? (
               <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">

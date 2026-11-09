@@ -4,7 +4,7 @@
  * Uses Google Gemini API (@google/genai) and deterministic clinical safety guardrails
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import {
   AgentExecutionLog,
   AgentExecutionStep,
@@ -96,8 +96,8 @@ export async function callGeminiIntakeResponse(params: {
 
   const fullPrompt = `${languageInstruction}${params.patientContext ? `Patient Context:\n${params.patientContext}\n\n` : ''}${historyFormatted}Patient Message: "${params.prompt}"\n\nPlease provide a reassuring clinical intake response and ask ONE clear follow-up question. (Output only your direct reply to the patient in ${lang === 'te' ? 'Telugu' : lang === 'hi' ? 'Hindi' : 'English'}):`;
 
-  // Candidate models: prioritize ultra-fast responsive model (gemini-3.5-flash-lite), then gemini-3.8-flash, then gemini-3.1-flash-lite
-  const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  // Candidate models conforming to @google/genai specification: gemini-3.8-flash (primary) and gemini-3.1-flash-lite (fast fallback)
+  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
   let lastError: any = null;
 
   for (const model of candidateModels) {
@@ -108,12 +108,15 @@ export async function callGeminiIntakeResponse(params: {
         contents: fullPrompt,
         config: {
           systemInstruction: CLINIC_AGENT_SYSTEM_PROMPT,
+          ...(model === 'gemini-3.8-flash'
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : {}),
         },
       });
 
-      // 4-second timeout per model attempt to prevent UI hangs
+      // 12-second timeout per model attempt to allow adequate network and generation time
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after 4000ms with ${model}`)), 4000)
+        setTimeout(() => reject(new Error(`Timeout after 12000ms with ${model}`)), 12000)
       );
 
       const res = await Promise.race([apiCall, timeoutPromise]);
@@ -655,8 +658,13 @@ export class ClinicAgentWorkflow {
 
     if (!finalReply) {
       if (geminiError) {
-        console.error('[AgentService] Gemini Error occurred during patient chat:', geminiError);
-        finalReply = `⚠️ Note: PulseClinic AI service notification: ${geminiError} Please click the Retry button to try again.`;
+        console.warn('[AgentService] Gemini fallback engaged:', geminiError);
+      }
+      const lang = params.language || 'en';
+      if (lang === 'te') {
+        finalReply = `నమస్కారం ${patientRecord?.fullName || ''}! మీ లక్షణాలను పరిశీలించాము (${triage.urgency} ప్రాధాన్యత). మా నిపుణులైన ${triage.recommendedSpecialty} డాక్టర్ ${primaryDoctor.name} అందుబాటులో ఉన్నారు. మీ అసౌకర్యం తీవ్రతను 1 నుండి 10 స్కేలులో తెలపగలరా?`;
+      } else if (lang === 'hi') {
+        finalReply = `नमस्ते ${patientRecord?.fullName || ''}! हमने आपके लक्षणों का मूल्यांकन किया है (${triage.urgency} प्राथमिकता)। हमारे विशेषज्ञ ${triage.recommendedSpecialty} डॉ. ${primaryDoctor.name} उपलब्ध हैं। कृपया बताएं कि आपकी तकलीफ 1 से 10 के पैमाने पर कितनी है?`;
       } else {
         const returningGreeting = patientRecord
           ? `Welcome back, ${patientRecord.fullName}! I have your clinical records on file (Allergies: ${patientRecord.medicalHistory.allergies.join(', ') || 'None listed'}). `

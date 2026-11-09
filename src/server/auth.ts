@@ -182,6 +182,9 @@ function initializeDefaultAccounts() {
       passwordHash: hashPassword('DoctorPass123!', salt),
     };
     inMemoryUsers.set(doc.email.toLowerCase(), docAccount);
+    if (doc.uid === 'doc-cardio-1') {
+      inMemoryUsers.set('dr.vance@pulseclinic.internal', docAccount);
+    }
   }
 }
 

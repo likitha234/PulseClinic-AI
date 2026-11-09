@@ -4,12 +4,19 @@
  * using Google Gemini (gemini-3.8-flash)
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { clinicStore } from './store.ts';
 import { PatientService } from './patientService.ts';
 import { Appointment, DoctorHandoffSummary } from '../types/index.ts';
 
-const ai = new GoogleGenAI();
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    },
+  },
+});
 
 export class DoctorHandoffService {
   /**
@@ -95,7 +102,7 @@ CRITICAL CLINICAL SAFETY RULES:
         contents: promptContext,
         config: {
           responseMimeType: 'application/json',
-          temperature: 0.2,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         },
       });
 
